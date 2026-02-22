@@ -1,4 +1,6 @@
 node_modules
 package-lock.json
-vulnerability_dashboard.json
-vulnerability_report.json
+# Allow reports generated in the reports folder
+!/reports/
+reports/*
+!reports/.gitkeep
