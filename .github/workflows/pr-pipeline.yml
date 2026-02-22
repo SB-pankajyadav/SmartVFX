@@ -39,7 +39,7 @@ jobs:
           fi
           
           if [ "${{ needs.audit.result }}" != "success" ]; then
-            echo "⚠️ Audit job completed with warnings"
+            echo "⚠️ Audit job completed with warnings or errors"
           else
             echo "✅ All jobs completed successfully"
           fi
