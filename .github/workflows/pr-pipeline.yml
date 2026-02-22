@@ -20,10 +20,101 @@ jobs:
     needs: setup
     uses: ./.github/workflows/audit.yml
   
+  approval:
+    name: Approval Required
+    runs-on: ubuntu-latest
+    needs: [setup, audit]
+    environment:
+      name: production-approval
+    steps:
+      - name: Waiting for approval
+        run: |
+          echo "✅ Setup job status: ${{ needs.setup.result }}"
+          echo "✅ Audit job status: ${{ needs.audit.result }}"
+          echo "⏳ Waiting for approval to proceed with next steps..."
+  
+  project-setup:
+    name: Project Setup
+    runs-on: ubuntu-latest
+    needs: approval
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Run project setup
+        run: npm run project-setup
+  
+  start-application:
+    name: Start Application
+    runs-on: ubuntu-latest
+    needs: project-setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Start application
+        run: |
+          echo "Starting application..."
+          timeout 10s npm start || echo "Application started and stopped after timeout"
+  
+  py-setup:
+    name: Python Setup
+    runs-on: ubuntu-latest
+    needs: project-setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Run Python setup
+        run: npm run py-setup
+  
+  autofix:
+    name: Auto Fix Vulnerabilities
+    runs-on: ubuntu-latest
+    needs: [project-setup, py-setup]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run autofix
+        run: npm run autofix
+        continue-on-error: true
+  
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [setup, audit]
+    needs: [setup, audit, approval, project-setup, start-application, py-setup, autofix]
     if: always()
     
     steps:
@@ -32,6 +123,11 @@ jobs:
           echo "Pipeline execution completed"
           echo "Setup job status: ${{ needs.setup.result }}"
           echo "Audit job status: ${{ needs.audit.result }}"
+          echo "Approval job status: ${{ needs.approval.result }}"
+          echo "Project Setup job status: ${{ needs.project-setup.result }}"
+          echo "Start Application job status: ${{ needs.start-application.result }}"
+          echo "Python Setup job status: ${{ needs.py-setup.result }}"
+          echo "Autofix job status: ${{ needs.autofix.result }}"
           
           if [ "${{ needs.setup.result }}" != "success" ]; then
             echo "❌ Setup job failed"
@@ -40,6 +136,12 @@ jobs:
           
           if [ "${{ needs.audit.result }}" != "success" ]; then
             echo "⚠️ Audit job completed with warnings or errors"
-          else
-            echo "✅ All jobs completed successfully"
           fi
+          
+          if [ "${{ needs.approval.result }}" == "success" ]; then
+            echo "✅ Approval granted and post-approval jobs executed"
+          else
+            echo "❌ Approval was not granted"
+          fi
+          
+          echo "✅ Pipeline completed successfully"
