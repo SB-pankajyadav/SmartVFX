@@ -1,2 +1,16 @@
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+packages/autofix/.venv
+
+
+# Project specific
+packages/audit/fix_applied.json
+
 node_modules
 package-lock.json
+
+packages/audit/vulnerability_dashboard.json
+packages/audit/vulnerability_report.json
