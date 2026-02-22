@@ -21,7 +21,7 @@ jobs:
         run: npm install
       
       - name: Run vulnerability audit script
-        run: node run-audit.js
+        run: npm run audit
         continue-on-error: true
       
       - name: Verify reports folder
