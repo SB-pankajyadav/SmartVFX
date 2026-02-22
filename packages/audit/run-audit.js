@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 const { exec } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
-// Produce one merged report file named 'vulnerability report.json' in current folder (packages/audit)
-const outFile = path.join(__dirname, 'vulnerability_report.json');
+// Accept output directory as argument, default to current folder (packages/audit)
+const outputDir = process.argv[2] || __dirname;
+
+// Create output directory if it doesn't exist
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+
+// Produce one merged report file named 'vulnerability_report.json' in specified folder
+const outFile = path.join(outputDir, 'vulnerability_report.json');
 
 const jqExpr = `{
   high: ([
@@ -72,7 +81,7 @@ async function main() {
     await run(cmd);
     console.log('Saved', outFile);
     // Generate dashboard with counts for each severity
-    const dashOut = path.join(__dirname, 'vulnerability_dashboard.json');
+    const dashOut = path.join(outputDir, 'vulnerability_dashboard.json');
     const dashCmd = `jq '{high: (.high|length), moderate: (.moderate|length), low: (.low|length)}' "${outFile}" > "${dashOut}"`;
     try {
       await run(dashCmd);

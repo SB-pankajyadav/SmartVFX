@@ -37,30 +37,30 @@ jobs:
         run: npm install
       
       - name: Generate vulnerability report
-        run: npm run audit
+        run: node ./packages/audit/run-audit.js ./reports/pre-fix
         continue-on-error: true
       
       - name: Display pre-fix report
         run: |
           echo "📋 Pre-Fix Vulnerability Report"
           echo "================================"
-          if [ -f packages/audit/vulnerability_report.json ]; then
-            cat packages/audit/vulnerability_report.json
+          if [ -f reports/pre-fix/vulnerability_report.json ]; then
+            cat reports/pre-fix/vulnerability_report.json
           else
             echo "No vulnerability report found"
           fi
           
-          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+          if [ -f reports/pre-fix/vulnerability_dashboard.json ]; then
             echo ""
             echo "📊 Vulnerability Dashboard:"
-            cat packages/audit/vulnerability_dashboard.json
+            cat reports/pre-fix/vulnerability_dashboard.json
           fi
       
       - name: Upload pre-fix report
         uses: actions/upload-artifact@v4
         with:
           name: pre-fix-vulnerability-report
-          path: packages/audit/*.json
+          path: reports/pre-fix/
           if-no-files-found: warn
   
   approval:
@@ -176,30 +176,30 @@ jobs:
         run: npm install
       
       - name: Generate post-fix vulnerability report
-        run: npm run audit
+        run: node ./packages/audit/run-audit.js ./reports/post-fix
         continue-on-error: true
       
       - name: Display post-fix report
         run: |
           echo "📋 Post-Fix Vulnerability Report"
           echo "================================="
-          if [ -f packages/audit/vulnerability_report.json ]; then
-            cat packages/audit/vulnerability_report.json
+          if [ -f reports/post-fix/vulnerability_report.json ]; then
+            cat reports/post-fix/vulnerability_report.json
           else
             echo "No vulnerability report found"
           fi
           
-          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+          if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
             echo ""
             echo "📊 Post-Fix Vulnerability Dashboard:"
-            cat packages/audit/vulnerability_dashboard.json
+            cat reports/post-fix/vulnerability_dashboard.json
           fi
       
       - name: Upload post-fix report
         uses: actions/upload-artifact@v4
         with:
           name: post-fix-vulnerability-report
-          path: packages/audit/*.json
+          path: reports/post-fix/
           if-no-files-found: warn
   
   pipeline-summary:
