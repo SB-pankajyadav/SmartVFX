@@ -1,0 +1,48 @@
+name: Setup Workspace
+
+on:
+  workflow_call:
+    outputs:
+      node-version:
+        description: "Node.js version detected"
+        value: ${{ jobs.setup.outputs.node-version }}
+
+jobs:
+  setup:
+    name: Setup and Install Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      node-version: ${{ steps.node-info.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Check Node.js version
+        id: node-info
+        run: |
+          NODE_VERSION=$(node --version)
+          echo "Node.js version: $NODE_VERSION"
+          echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Check npm version
+        run: |
+          NPM_VERSION=$(npm --version)
+          echo "npm version: $NPM_VERSION"
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
