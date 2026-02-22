@@ -1,6 +1,2 @@
 node_modules
 package-lock.json
-# Allow reports generated in the reports folder
-!/reports/
-reports/*
-!reports/.gitkeep
