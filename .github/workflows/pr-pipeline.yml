@@ -1,4 +1,4 @@
-name: PR Pipeline - Security Audit
+name: Pipeline - Security Audit
 
 on:
   push:
