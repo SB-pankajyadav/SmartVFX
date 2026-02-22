@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 const { exec } = require('child_process');
+const path = require('path');
 
-// Produce one merged report file named 'vulnerability report.json'
-const outFile = 'vulnerability_report.json';
+// Produce one merged report file named 'vulnerability report.json' in current folder (packages/audit)
+const outFile = path.join(__dirname, 'vulnerability_report.json');
 
 const jqExpr = `{
   high: ([
@@ -71,7 +72,7 @@ async function main() {
     await run(cmd);
     console.log('Saved', outFile);
     // Generate dashboard with counts for each severity
-    const dashOut = 'vulnerability_dashboard.json';
+    const dashOut = path.join(__dirname, 'vulnerability_dashboard.json');
     const dashCmd = `jq '{high: (.high|length), moderate: (.moderate|length), low: (.low|length)}' "${outFile}" > "${dashOut}"`;
     try {
       await run(dashCmd);
