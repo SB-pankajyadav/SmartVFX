@@ -1,0 +1,23 @@
+{
+  "name": "vulnerable-node20-app",
+  "version": "1.0.0",
+  "description": "A demo project with known vulnerabilities for security testing",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "audit": "npm audit"
+  },
+  "dependencies": {
+    "express": "4.12.4",
+    "mongoose": "4.2.4",
+    "body-parser": "1.19.0",
+    "jsonwebtoken": "8.5.1",
+    "lodash": "4.17.15",
+    "request": "2.88.2",
+    "got": "11.8.2"
+  }
+}
