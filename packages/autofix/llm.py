@@ -81,53 +81,34 @@ def format_prompt(dependencies, updates):
     print(prompt)
     return prompt
 
-# 🔹 Validate Google Gemini API Key (Free Tier)
+# 🔹 Validate Google Gemini API Key (kept for future use, not called in main)
 def validate_api_key(api_key):
-    try:
-        client = genai.Client(api_key=api_key)
-        # Use free tier model: gemini-3-flash-preview
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview", 
-            contents="ok"
-        )
-        print("✅ API Key is VALID")
-        return True
-    except Exception as e:
-        if "429" in str(e):
-            print("⚠️ Rate limit hit - Free tier quota exceeded")
-            return True  # Proceed, will retry later
-        elif "401" in str(e) or "invalid" in str(e).lower():
-            print("❌ API Key is INVALID")
-            return False
-        else:
-            print(f"⚠️ API validation warning: {e}")
-            return True
+    """Lightweight validation hook (not used in main flow).
 
-# 🔹 Call Google Gemini AI with Retry (Free Tier Friendly)
-def ask_gemini(prompt, api_key, max_retries=3):
+    We avoid calling the API here to prevent burning free-tier quota.
+    The main flow relies on ask_gemini error handling instead.
+    """
+    return bool(api_key)
+
+# 🔹 Call Google Gemini AI (Rate-limit friendly)
+def ask_gemini(prompt, api_key):
     client = genai.Client(api_key=api_key)
     model = "gemini-3-flash-preview"  # Free tier model
-    
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt
-            )
-            return response.text
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str:
-                wait_time = 60 * (attempt + 1)  # Exponential backoff: 60s, 120s, 180s
-                print(f"⚠️ Rate limit (429). Retry {attempt + 1}/{max_retries} in {wait_time}s...")
-                if attempt < max_retries - 1:
-                    time.sleep(wait_time)
-                else:
-                    print("❌ Max retries reached. Quota exhausted.")
-                    raise
-            else:
-                print(f"❌ Request Error: {e}")
-                raise
+
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        error_str = str(e)
+        if "429" in error_str:
+            # Rate limit / quota exhausted: fall back to audit versions only.
+            print("⚠️ Gemini rate limit (429) hit; will fall back to audit versions only.")
+            return ""  # triggers fallback path in main
+        print(f"❌ Request Error from Gemini: {e}")
+        raise
 
 # 🔹 Clean AI Output (Ensure Each Package is on a Separate Line)
 def clean_ai_output(ai_output):
@@ -155,28 +136,42 @@ def update_package_json(package_path, original_data, cleaned_lines):
 def append_fixed_apply(log_path, old_versions, fixed_versions):
     """Append a JSON entry to log_path. Maintains a JSON array of entries.
 
-    Each entry contains:
-      - time: HH:MM:SS
-      - date: YYYY-MM-DD
-      - old: list of {package, version}
-      - fixed: list of {package, version}
-      - timestamp: ISO UTC
+    Desired format per run:
+      {
+        "time": "HH:MM:SS",
+        "date": "YYYY-MM-DD",
+        "packages": [
+          {
+            "name": "package_name",
+            "old_version": "current version in package.json",
+            "new_version": "updated version after fix"
+          },
+          ...
+        ]
+      }
     """
     ts = datetime.utcnow().isoformat() + "Z"
     date = ts.split("T")[0]
     time_str = ts.split("T")[1].rstrip("Z")
 
-    # old_versions: dict pkg -> previous version from package.json
-    old_list = [{"package": k, "version": v} for k, v in old_versions.items()]
-
-    fixed_list = [{"package": k, "version": v} for k, v in fixed_versions.items()]
+    # Build package list combining old and new versions
+    packages = []
+    for name, old_ver in old_versions.items():
+        new_ver = fixed_versions.get(name)
+        if new_ver is None:
+            continue
+        packages.append(
+            {
+                "name": name,
+                "old_version": old_ver,
+                "new_version": new_ver,
+            }
+        )
 
     entry = {
         "time": time_str,
         "date": date,
-        "old": old_list,
-        "fixed": fixed_list,
-        "timestamp": ts,
+        "package": packages,
     }
 
     # Read existing JSON array if present, else start new
@@ -231,12 +226,6 @@ def main():
     print(f"🔹 Looking for vulnerability report at: {VULN_JSON_FILE}")
     print(f"🔹 Looking for package.json at: {PACKAGE_FILE}")
     print(f"🔹 Will write fix log to: {APPEND_LOG}")
-
-    # Validate API Key first
-    print("🔹 Validating Google Gemini API Key...")
-    if not validate_api_key(API_KEY):
-        print("❌ Please provide a valid Google Gemini API key")
-        return
 
     # Load vulnerabilities (from repo root)
     print("🔹 Loading vulnerabilities from vulnerability_report.json...")
