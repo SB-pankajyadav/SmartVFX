@@ -104,8 +104,11 @@ jobs:
         with:
           python-version: '3.x'
       
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: npm install
+      
+      - name: Install Python dependencies
+        run: pip install -r packages/autofix/requirements.txt
       
       - name: Run autofix
         run: npm run autofix
