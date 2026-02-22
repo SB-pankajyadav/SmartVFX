@@ -20,18 +20,63 @@ jobs:
     needs: setup
     uses: ./.github/workflows/audit.yml
   
-  approval:
-    name: Approval Required
+  generate-pre-fix-report:
+    name: Generate Pre-Fix Vulnerability Report
     runs-on: ubuntu-latest
-    needs: [setup, audit]
-    environment:
-      name: production-approval
+    needs: audit
     steps:
-      - name: Waiting for approval
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Generate vulnerability report
+        run: npm run audit
+        continue-on-error: true
+      
+      - name: Display pre-fix report
+        run: |
+          echo "📋 Pre-Fix Vulnerability Report"
+          echo "================================"
+          if [ -f packages/audit/vulnerability_report.json ]; then
+            cat packages/audit/vulnerability_report.json
+          else
+            echo "No vulnerability report found"
+          fi
+          
+          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+            echo ""
+            echo "📊 Vulnerability Dashboard:"
+            cat packages/audit/vulnerability_dashboard.json
+          fi
+      
+      - name: Upload pre-fix report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-fix-vulnerability-report
+          path: packages/audit/*.json
+          if-no-files-found: warn
+  
+  approval:
+    name: Manual Approval Required
+    runs-on: ubuntu-latest
+    needs: [setup, audit, generate-pre-fix-report]
+    environment: production-approval
+    steps:
+      - name: Review required
         run: |
           echo "✅ Setup job status: ${{ needs.setup.result }}"
           echo "✅ Audit job status: ${{ needs.audit.result }}"
-          echo "⏳ Waiting for approval to proceed with next steps..."
+          echo "✅ Pre-fix report status: ${{ needs.generate-pre-fix-report.result }}"
+          echo ""
+          echo "⏸️  Manual approval required to proceed with fixes"
+          echo "Review the vulnerability report and approve to continue"
   
   project-setup:
     name: Project Setup
@@ -114,23 +159,70 @@ jobs:
         run: npm run autofix
         continue-on-error: true
   
+  generate-post-fix-report:
+    name: Generate Post-Fix Vulnerability Report
+    runs-on: ubuntu-latest
+    needs: autofix
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Generate post-fix vulnerability report
+        run: npm run audit
+        continue-on-error: true
+      
+      - name: Display post-fix report
+        run: |
+          echo "📋 Post-Fix Vulnerability Report"
+          echo "================================="
+          if [ -f packages/audit/vulnerability_report.json ]; then
+            cat packages/audit/vulnerability_report.json
+          else
+            echo "No vulnerability report found"
+          fi
+          
+          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+            echo ""
+            echo "📊 Post-Fix Vulnerability Dashboard:"
+            cat packages/audit/vulnerability_dashboard.json
+          fi
+      
+      - name: Upload post-fix report
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-fix-vulnerability-report
+          path: packages/audit/*.json
+          if-no-files-found: warn
+  
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [setup, audit, approval, project-setup, start-application, py-setup, autofix]
+    needs: [setup, audit, generate-pre-fix-report, approval, project-setup, start-application, py-setup, autofix, generate-post-fix-report]
     if: always()
     
     steps:
       - name: Check pipeline status
         run: |
           echo "Pipeline execution completed"
+          echo "================================="
           echo "Setup job status: ${{ needs.setup.result }}"
           echo "Audit job status: ${{ needs.audit.result }}"
+          echo "Pre-fix Report status: ${{ needs.generate-pre-fix-report.result }}"
           echo "Approval job status: ${{ needs.approval.result }}"
           echo "Project Setup job status: ${{ needs.project-setup.result }}"
           echo "Start Application job status: ${{ needs.start-application.result }}"
           echo "Python Setup job status: ${{ needs.py-setup.result }}"
           echo "Autofix job status: ${{ needs.autofix.result }}"
+          echo "Post-fix Report status: ${{ needs.generate-post-fix-report.result }}"
+          echo "================================="
           
           if [ "${{ needs.setup.result }}" != "success" ]; then
             echo "❌ Setup job failed"
@@ -143,8 +235,14 @@ jobs:
           
           if [ "${{ needs.approval.result }}" == "success" ]; then
             echo "✅ Approval granted and post-approval jobs executed"
+            
+            if [ "${{ needs.generate-post-fix-report.result }}" == "success" ]; then
+              echo "✅ Post-fix vulnerability report generated"
+              echo "📊 Compare pre-fix and post-fix reports in artifacts"
+            fi
           else
-            echo "❌ Approval was not granted"
+            echo "⚠️ Approval was not granted or skipped"
           fi
           
+          echo ""
           echo "✅ Pipeline completed successfully"
