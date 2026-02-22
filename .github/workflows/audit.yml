@@ -29,15 +29,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vulnerability-report
-          path: vulnerability_report.json
+          path: reports/
           if-no-files-found: warn
       
       - name: Display audit summary
         if: always()
         run: |
-          if [ -f vulnerability_report.json ]; then
+          if [ -f reports/vulnerability_report.json ]; then
             echo "Vulnerability report generated successfully"
-            cat vulnerability_report.json
+            cat reports/vulnerability_report.json
           else
             echo "No vulnerability report found"
           fi
