@@ -24,6 +24,16 @@ jobs:
         run: node run-audit.js
         continue-on-error: true
       
+      - name: Verify reports folder
+        if: always()
+        run: |
+          echo "Checking reports folder..."
+          ls -la reports/ || echo "Reports folder not found"
+          if [ -d reports ]; then
+            echo "Files in reports folder:"
+            ls -lh reports/
+          fi
+      
       - name: Upload vulnerability report
         if: always()
         uses: actions/upload-artifact@v4
