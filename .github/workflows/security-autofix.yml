@@ -159,8 +159,24 @@ jobs:
           echo "Package.json before:"
           cat package.json
           echo ""
-          echo "=== Running npm run autofix ==="
-          npm run autofix 2>&1 | tee autofix-output.log || echo "Autofix command failed with exit code $?"
+          echo "=== Checking .env file ==="
+          if [ -f .env ]; then
+            echo "✅ .env file exists"
+            # Don't print the actual key, just check if it's set
+            if grep -q "GOOGLE_GENAI_API_KEY=" .env; then
+              echo "✅ GOOGLE_GENAI_API_KEY is set in .env"
+            else
+              echo "❌ GOOGLE_GENAI_API_KEY not found in .env"
+            fi
+          else
+            echo "❌ .env file not found"
+          fi
+          echo ""
+          echo "=== Running Python LLM script directly ==="
+          if [ -d packages/autofix/.venv ]; then
+            source packages/autofix/.venv/bin/activate
+          fi
+          python3 packages/autofix/llm.py 2>&1 | tee autofix-output.log || echo "Python script failed with exit code $?"
           echo ""
           echo "=== Auto-Fix Process Complete ==="
           echo "Package.json after:"
@@ -170,12 +186,24 @@ jobs:
       - name: Check Auto-Fix Results
         run: |
           echo "=== Checking Fix Results ==="
+          echo "Looking for fix logs in multiple locations..."
+          
+          # Check primary location (dashboard-data/src/data.json)
+          if [ -f packages/audit/dashboard-data/src/data.json ]; then
+            echo "✅ data.json created at packages/audit/dashboard-data/src/data.json"
+            cat packages/audit/dashboard-data/src/data.json
+          else
+            echo "❌ data.json not found at packages/audit/dashboard-data/src/data.json"
+          fi
+          
+          # Check legacy location
           if [ -f packages/audit/fix_applied.json ]; then
             echo "✅ fix_applied.json created"
             cat packages/audit/fix_applied.json
           else
             echo "❌ fix_applied.json not found"
           fi
+          
           echo ""
           echo "=== Package.json Diff ==="
           diff package.json.backup package.json || echo "No changes to package.json"
@@ -236,6 +264,7 @@ jobs:
           name: autofix-logs
           path: |
             packages/audit/fix_applied.json
+            packages/audit/dashboard-data/src/data.json
           retention-days: 30
         if: always()
         continue-on-error: true
@@ -325,12 +354,23 @@ jobs:
           echo "## 🔧 Applied Fixes" >> fix-report.md
           echo "" >> fix-report.md
           
-          if [ -f reports/fix-logs/fix_applied.json ]; then
+          # Check both possible locations for fix logs
+          FIX_LOG_FOUND=false
+          if [ -f reports/fix-logs/data.json ]; then
+            echo '```json' >> fix-report.md
+            cat reports/fix-logs/data.json >> fix-report.md
+            echo '```' >> fix-report.md
+            echo "" >> fix-report.md
+            FIX_LOG_FOUND=true
+          elif [ -f reports/fix-logs/fix_applied.json ]; then
             echo '```json' >> fix-report.md
             cat reports/fix-logs/fix_applied.json >> fix-report.md
             echo '```' >> fix-report.md
             echo "" >> fix-report.md
-          else
+            FIX_LOG_FOUND=true
+          fi
+          
+          if [ "$FIX_LOG_FOUND" = false ]; then
             echo "⚠️ Fix log not found" >> fix-report.md
             echo "" >> fix-report.md
           fi
@@ -463,10 +503,16 @@ jobs:
           echo "================================"
           echo "FIX APPLIED LOG"
           echo "================================"
-          if [ -f reports/fix-logs/fix_applied.json ]; then
+          if [ -f reports/fix-logs/data.json ]; then
+            echo "Found at: reports/fix-logs/data.json"
+            cat reports/fix-logs/data.json
+          elif [ -f reports/fix-logs/fix_applied.json ]; then
+            echo "Found at: reports/fix-logs/fix_applied.json"
             cat reports/fix-logs/fix_applied.json
           else
-            echo "No fix log found"
+            echo "No fix log found in either location"
+            echo "Listing fix-logs directory:"
+            ls -la reports/fix-logs/ || echo "Directory not found"
           fi
 
       - name: Upload Comprehensive Report
