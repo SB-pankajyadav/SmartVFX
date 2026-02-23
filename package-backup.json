@@ -1,0 +1,25 @@
+{
+  "name": "vulnerable-node20-app",
+  "version": "1.0.0",
+  "description": "A demo project with known vulnerabilities for security testing",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "project-setup": "npm install && npm run py-setup",
+    "start": "node ./packages/work/index.js",
+    "audit": "node ./packages/audit/run-audit.js",
+    "py-setup": "./autofix_setup.sh",
+    "autofix": "python3 ./packages/autofix/llm.py && npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "4.12.4",
+    "mongoose": "4.2.4",
+    "body-parser": "1.19.0",
+    "jsonwebtoken": "8.5.1",
+    "lodash": "4.17.15",
+    "got": "11.8.2"
+  }
+}
