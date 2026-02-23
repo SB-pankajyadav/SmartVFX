@@ -1,2 +1,0 @@
-Project setup completed at Mon Feb 23 06:50:12 UTC 2026
-Setup includes: npm install + py-setup

@@ -1,2 +1,0 @@
-Application start attempt completed at Mon Feb 23 06:50:26 UTC 2026
-Started with: npm start
