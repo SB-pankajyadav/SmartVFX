@@ -1,0 +1,413 @@
+name: Security Vulnerability Auto-Fix Pipeline
+
+on:
+  push:
+    branches: [ main, dev, dev_fix ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12.9'
+
+jobs:
+  setup-and-audit:
+    name: Environment Setup & Vulnerability Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install jq (required for audit script)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run Project Setup
+        run: npm run project-setup
+        continue-on-error: true
+
+      - name: Create .env file for LLM
+        run: |
+          echo "GOOGLE_GENAI_API_KEY=${{ secrets.GOOGLE_GENAI_API_KEY }}" > .env
+        if: secrets.GOOGLE_GENAI_API_KEY != ''
+
+      - name: Run Vulnerability Audit
+        run: npm run audit
+        continue-on-error: true
+
+      - name: Display Pre-Fix Vulnerability Dashboard
+        run: |
+          echo "=== Pre-Fix Vulnerability Dashboard ==="
+          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+            cat packages/audit/vulnerability_dashboard.json
+          else
+            echo "Dashboard file not found"
+          fi
+
+      - name: Upload Pre-Fix Audit Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-fix-reports
+          path: |
+            packages/audit/vulnerability_report.json
+            packages/audit/vulnerability_dashboard.json
+          retention-days: 30
+        if: always()
+
+  autofix:
+    name: Auto-Fix Vulnerabilities with LLM
+    runs-on: ubuntu-latest
+    needs: setup-and-audit
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install jq (required for audit script)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run Project Setup
+        run: npm run project-setup
+        continue-on-error: true
+
+      - name: Download Pre-Fix Audit Reports
+        uses: actions/download-artifact@v4
+        with:
+          name: pre-fix-reports
+          path: packages/audit/
+
+      - name: Create .env file for LLM
+        run: |
+          echo "GOOGLE_GENAI_API_KEY=${{ secrets.GOOGLE_GENAI_API_KEY }}" > .env
+        if: secrets.GOOGLE_GENAI_API_KEY != ''
+
+      - name: Backup Original package.json
+        run: cp package.json package.json.backup
+
+      - name: Run Auto-Fix with LLM
+        run: npm run autofix
+        continue-on-error: true
+
+      - name: Run Post-Fix Audit
+        run: npm run audit
+        continue-on-error: true
+
+      - name: Display Post-Fix Vulnerability Dashboard
+        run: |
+          echo "=== Post-Fix Vulnerability Dashboard ==="
+          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+            cat packages/audit/vulnerability_dashboard.json
+          else
+            echo "Dashboard file not found"
+          fi
+
+      - name: Upload Post-Fix Audit Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-fix-reports
+          path: |
+            packages/audit/vulnerability_report.json
+            packages/audit/vulnerability_dashboard.json
+          retention-days: 30
+        if: always()
+
+      - name: Upload Modified package.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixed-package-json
+          path: |
+            package.json
+            package.json.backup
+          retention-days: 30
+        if: always()
+
+      - name: Upload Fix Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: autofix-logs
+          path: |
+            packages/audit/fix_applied.json
+          retention-days: 30
+        if: always()
+
+  generate-report:
+    name: Generate Fix Report & Summary
+    runs-on: ubuntu-latest
+    needs: [setup-and-audit, autofix]
+    if: always()
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Pre-Fix Reports
+        uses: actions/download-artifact@v4
+        with:
+          name: pre-fix-reports
+          path: reports/pre-fix/
+        continue-on-error: true
+
+      - name: Download Post-Fix Reports
+        uses: actions/download-artifact@v4
+        with:
+          name: post-fix-reports
+          path: reports/post-fix/
+        continue-on-error: true
+
+      - name: Download Fixed package.json
+        uses: actions/download-artifact@v4
+        with:
+          name: fixed-package-json
+          path: reports/package-changes/
+        continue-on-error: true
+
+      - name: Download Fix Logs
+        uses: actions/download-artifact@v4
+        with:
+          name: autofix-logs
+          path: reports/fix-logs/
+        continue-on-error: true
+
+      - name: Generate Comprehensive Fix Report
+        run: |
+          cat << 'EOF' > fix-report.md
+          # 🔒 Security Vulnerability Auto-Fix Report
+          
+          **Pipeline Run:** ${{ github.run_number }}  
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+          **Branch:** ${{ github.ref_name }}  
+          **Commit:** ${{ github.sha }}
+          
+          ---
+          
+          ## 📊 Pre-Fix Vulnerability Summary
+          
+          EOF
+          
+          if [ -f reports/pre-fix/vulnerability_dashboard.json ]; then
+            echo '```json' >> fix-report.md
+            cat reports/pre-fix/vulnerability_dashboard.json >> fix-report.md
+            echo '```' >> fix-report.md
+            echo "" >> fix-report.md
+            
+            # Extract counts
+            HIGH=$(jq -r '.high // 0' reports/pre-fix/vulnerability_dashboard.json)
+            MODERATE=$(jq -r '.moderate // 0' reports/pre-fix/vulnerability_dashboard.json)
+            LOW=$(jq -r '.low // 0' reports/pre-fix/vulnerability_dashboard.json)
+            TOTAL=$((HIGH + MODERATE + LOW))
+            
+            cat << EOF >> fix-report.md
+          | Severity | Count |
+          |----------|-------|
+          | 🔴 High | $HIGH |
+          | 🟠 Moderate | $MODERATE |
+          | 🟡 Low | $LOW |
+          | **Total** | **$TOTAL** |
+          
+          EOF
+          else
+            echo "⚠️ Pre-fix vulnerability dashboard not found" >> fix-report.md
+            echo "" >> fix-report.md
+          fi
+          
+          echo "---" >> fix-report.md
+          echo "" >> fix-report.md
+          echo "## 🔧 Applied Fixes" >> fix-report.md
+          echo "" >> fix-report.md
+          
+          if [ -f reports/fix-logs/fix_applied.json ]; then
+            echo '```json' >> fix-report.md
+            cat reports/fix-logs/fix_applied.json >> fix-report.md
+            echo '```' >> fix-report.md
+            echo "" >> fix-report.md
+          else
+            echo "⚠️ Fix log not found" >> fix-report.md
+            echo "" >> fix-report.md
+          fi
+          
+          echo "---" >> fix-report.md
+          echo "" >> fix-report.md
+          echo "## 📊 Post-Fix Vulnerability Summary" >> fix-report.md
+          echo "" >> fix-report.md
+          
+          if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
+            echo '```json' >> fix-report.md
+            cat reports/post-fix/vulnerability_dashboard.json >> fix-report.md
+            echo '```' >> fix-report.md
+            echo "" >> fix-report.md
+            
+            # Extract counts
+            HIGH_AFTER=$(jq -r '.high // 0' reports/post-fix/vulnerability_dashboard.json)
+            MODERATE_AFTER=$(jq -r '.moderate // 0' reports/post-fix/vulnerability_dashboard.json)
+            LOW_AFTER=$(jq -r '.low // 0' reports/post-fix/vulnerability_dashboard.json)
+            TOTAL_AFTER=$((HIGH_AFTER + MODERATE_AFTER + LOW_AFTER))
+            
+            cat << EOF >> fix-report.md
+          | Severity | Count |
+          |----------|-------|
+          | 🔴 High | $HIGH_AFTER |
+          | 🟠 Moderate | $MODERATE_AFTER |
+          | 🟡 Low | $LOW_AFTER |
+          | **Total** | **$TOTAL_AFTER** |
+          
+          EOF
+          else
+            echo "⚠️ Post-fix vulnerability dashboard not found" >> fix-report.md
+            echo "" >> fix-report.md
+          fi
+          
+          echo "---" >> fix-report.md
+          echo "" >> fix-report.md
+          echo "## 📈 Impact Analysis" >> fix-report.md
+          echo "" >> fix-report.md
+          
+          if [ -f reports/pre-fix/vulnerability_dashboard.json ] && [ -f reports/post-fix/vulnerability_dashboard.json ]; then
+            HIGH_FIXED=$((HIGH - HIGH_AFTER))
+            MODERATE_FIXED=$((MODERATE - MODERATE_AFTER))
+            LOW_FIXED=$((LOW - LOW_AFTER))
+            TOTAL_FIXED=$((TOTAL - TOTAL_AFTER))
+            
+            cat << EOF >> fix-report.md
+          | Severity | Before | After | Fixed |
+          |----------|--------|-------|-------|
+          | 🔴 High | $HIGH | $HIGH_AFTER | ✅ $HIGH_FIXED |
+          | 🟠 Moderate | $MODERATE | $MODERATE_AFTER | ✅ $MODERATE_FIXED |
+          | 🟡 Low | $LOW | $LOW_AFTER | ✅ $LOW_FIXED |
+          | **Total** | **$TOTAL** | **$TOTAL_AFTER** | **✅ $TOTAL_FIXED** |
+          
+          EOF
+            
+            if [ $TOTAL_AFTER -eq 0 ]; then
+              echo "### 🎉 **SUCCESS!** All vulnerabilities have been fixed!" >> fix-report.md
+            elif [ $TOTAL_FIXED -gt 0 ]; then
+              echo "### ✅ **Partial Success** - $TOTAL_FIXED vulnerabilities fixed, $TOTAL_AFTER remaining" >> fix-report.md
+            else
+              echo "### ⚠️ **No vulnerabilities were fixed** - Manual intervention may be required" >> fix-report.md
+            fi
+          fi
+          
+          echo "" >> fix-report.md
+          echo "---" >> fix-report.md
+          echo "" >> fix-report.md
+          echo "## 📦 Package.json Changes" >> fix-report.md
+          echo "" >> fix-report.md
+          
+          if [ -f reports/package-changes/package.json.backup ] && [ -f reports/package-changes/package.json ]; then
+            echo "### Before:" >> fix-report.md
+            echo '```json' >> fix-report.md
+            jq '.dependencies' reports/package-changes/package.json.backup >> fix-report.md
+            echo '```' >> fix-report.md
+            echo "" >> fix-report.md
+            
+            echo "### After:" >> fix-report.md
+            echo '```json' >> fix-report.md
+            jq '.dependencies' reports/package-changes/package.json >> fix-report.md
+            echo '```' >> fix-report.md
+            echo "" >> fix-report.md
+          else
+            echo "⚠️ Package.json comparison not available" >> fix-report.md
+            echo "" >> fix-report.md
+          fi
+          
+          echo "---" >> fix-report.md
+          echo "" >> fix-report.md
+          echo "*Generated by GitHub Actions Security Auto-Fix Pipeline*" >> fix-report.md
+
+      - name: Display Fix Report
+        run: cat fix-report.md
+
+      - name: Display Pre-Fix Data
+        run: |
+          echo "================================"
+          echo "PRE-FIX VULNERABILITY DASHBOARD"
+          echo "================================"
+          if [ -f reports/pre-fix/vulnerability_dashboard.json ]; then
+            cat reports/pre-fix/vulnerability_dashboard.json
+          fi
+          echo ""
+          echo "================================"
+          echo "PRE-FIX VULNERABILITY REPORT (First 50 lines)"
+          echo "================================"
+          if [ -f reports/pre-fix/vulnerability_report.json ]; then
+            head -50 reports/pre-fix/vulnerability_report.json
+          fi
+
+      - name: Display Post-Fix Data
+        run: |
+          echo "================================"
+          echo "POST-FIX VULNERABILITY DASHBOARD"
+          echo "================================"
+          if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
+            cat reports/post-fix/vulnerability_dashboard.json
+          fi
+          echo ""
+          echo "================================"
+          echo "POST-FIX VULNERABILITY REPORT (First 50 lines)"
+          echo "================================"
+          if [ -f reports/post-fix/vulnerability_report.json ]; then
+            head -50 reports/post-fix/vulnerability_report.json
+          fi
+
+      - name: Display Fix Applied Log
+        run: |
+          echo "================================"
+          echo "FIX APPLIED LOG"
+          echo "================================"
+          if [ -f reports/fix-logs/fix_applied.json ]; then
+            cat reports/fix-logs/fix_applied.json
+          else
+            echo "No fix log found"
+          fi
+
+      - name: Upload Comprehensive Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-fix-report
+          path: |
+            fix-report.md
+            reports/
+          retention-days: 90
+
+      - name: Comment PR with Report (if PR)
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('fix-report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Job Summary
+        run: |
+          cat fix-report.md >> $GITHUB_STEP_SUMMARY
