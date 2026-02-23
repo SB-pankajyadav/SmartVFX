@@ -383,6 +383,12 @@ jobs:
           echo "📊 Generating Fixed Vulnerabilities Report"
           echo "==========================================="
           
+          # Debug: Check what files exist
+          echo "Debug: Checking for report files..."
+          ls -la reports/ || true
+          ls -la reports/pre-fix-comparison/ || true
+          ls -la reports/post-fix/ || true
+          
           # Create Fixed Vulnerabilities report directory
           mkdir -p reports/fixed-vulnerabilities
           FIXED_REPORT="reports/fixed-vulnerabilities/Fixed_Vulnerabilities.txt"
@@ -509,6 +515,16 @@ jobs:
             cat $FIXED_JSON
           else
             echo "❌ Could not generate comparison - missing reports" | tee -a $FIXED_REPORT
+            echo "Debug: Checking which files are missing..."
+            if [ ! -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
+              echo "  Missing: reports/pre-fix-comparison/vulnerability_dashboard.json"
+            fi
+            if [ ! -f reports/post-fix/vulnerability_dashboard.json ]; then
+              echo "  Missing: reports/post-fix/vulnerability_dashboard.json"
+            fi
+            echo "" | tee -a $FIXED_REPORT
+            echo "ERROR: Unable to generate Fixed Vulnerabilities report" | tee -a $FIXED_REPORT
+            echo "Required files not found." | tee -a $FIXED_REPORT
           fi
         continue-on-error: true
       
