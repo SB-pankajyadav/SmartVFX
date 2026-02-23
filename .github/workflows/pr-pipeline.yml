@@ -453,50 +453,37 @@ jobs:
             fi
             
             # Create JSON version
-            cat > $FIXED_JSON << 'JSONEOF'
-{
-  "generated": "TIMESTAMP_PLACEHOLDER",
-  "summary": {
-    "total_fixed": TOTAL_FIXED_PLACEHOLDER,
-    "high_fixed": DIFF_HIGH_PLACEHOLDER,
-    "moderate_fixed": DIFF_MODERATE_PLACEHOLDER,
-    "low_fixed": DIFF_LOW_PLACEHOLDER
-  },
-  "before_fix": {
-    "high": PRE_HIGH_PLACEHOLDER,
-    "moderate": PRE_MODERATE_PLACEHOLDER,
-    "low": PRE_LOW_PLACEHOLDER,
-    "total": PRE_TOTAL_PLACEHOLDER
-  },
-  "after_fix": {
-    "high": POST_HIGH_PLACEHOLDER,
-    "moderate": POST_MODERATE_PLACEHOLDER,
-    "low": POST_LOW_PLACEHOLDER,
-    "total": POST_TOTAL_PLACEHOLDER
-  },
-  "status": "STATUS_PLACEHOLDER"
-}
-JSONEOF
-            
-            # Replace placeholders
-            sed -i "s/TIMESTAMP_PLACEHOLDER/$(date -u +"%Y-%m-%dT%H:%M:%SZ")/" $FIXED_JSON
-            sed -i "s/TOTAL_FIXED_PLACEHOLDER/$TOTAL_FIXED/" $FIXED_JSON
-            sed -i "s/DIFF_HIGH_PLACEHOLDER/$DIFF_HIGH/" $FIXED_JSON
-            sed -i "s/DIFF_MODERATE_PLACEHOLDER/$DIFF_MODERATE/" $FIXED_JSON
-            sed -i "s/DIFF_LOW_PLACEHOLDER/$DIFF_LOW/" $FIXED_JSON
-            sed -i "s/PRE_HIGH_PLACEHOLDER/$PRE_HIGH/" $FIXED_JSON
-            sed -i "s/PRE_MODERATE_PLACEHOLDER/$PRE_MODERATE/" $FIXED_JSON
-            sed -i "s/PRE_LOW_PLACEHOLDER/$PRE_LOW/" $FIXED_JSON
-            sed -i "s/PRE_TOTAL_PLACEHOLDER/$((PRE_HIGH + PRE_MODERATE + PRE_LOW))/" $FIXED_JSON
-            sed -i "s/POST_HIGH_PLACEHOLDER/$POST_HIGH/" $FIXED_JSON
-            sed -i "s/POST_MODERATE_PLACEHOLDER/$POST_MODERATE/" $FIXED_JSON
-            sed -i "s/POST_LOW_PLACEHOLDER/$POST_LOW/" $FIXED_JSON
-            sed -i "s/POST_TOTAL_PLACEHOLDER/$((POST_HIGH + POST_MODERATE + POST_LOW))/" $FIXED_JSON
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            PRE_TOTAL=$((PRE_HIGH + PRE_MODERATE + PRE_LOW))
+            POST_TOTAL=$((POST_HIGH + POST_MODERATE + POST_LOW))
             if [ $TOTAL_FIXED -gt 0 ]; then
-              sed -i "s/STATUS_PLACEHOLDER/success/" $FIXED_JSON
+              STATUS="success"
             else
-              sed -i "s/STATUS_PLACEHOLDER/no_fixes/" $FIXED_JSON
+              STATUS="no_fixes"
             fi
+            
+            echo "{" > $FIXED_JSON
+            echo "  \"generated\": \"$TIMESTAMP\"," >> $FIXED_JSON
+            echo "  \"summary\": {" >> $FIXED_JSON
+            echo "    \"total_fixed\": $TOTAL_FIXED," >> $FIXED_JSON
+            echo "    \"high_fixed\": $DIFF_HIGH," >> $FIXED_JSON
+            echo "    \"moderate_fixed\": $DIFF_MODERATE," >> $FIXED_JSON
+            echo "    \"low_fixed\": $DIFF_LOW" >> $FIXED_JSON
+            echo "  }," >> $FIXED_JSON
+            echo "  \"before_fix\": {" >> $FIXED_JSON
+            echo "    \"high\": $PRE_HIGH," >> $FIXED_JSON
+            echo "    \"moderate\": $PRE_MODERATE," >> $FIXED_JSON
+            echo "    \"low\": $PRE_LOW," >> $FIXED_JSON
+            echo "    \"total\": $PRE_TOTAL" >> $FIXED_JSON
+            echo "  }," >> $FIXED_JSON
+            echo "  \"after_fix\": {" >> $FIXED_JSON
+            echo "    \"high\": $POST_HIGH," >> $FIXED_JSON
+            echo "    \"moderate\": $POST_MODERATE," >> $FIXED_JSON
+            echo "    \"low\": $POST_LOW," >> $FIXED_JSON
+            echo "    \"total\": $POST_TOTAL" >> $FIXED_JSON
+            echo "  }," >> $FIXED_JSON
+            echo "  \"status\": \"$STATUS\"" >> $FIXED_JSON
+            echo "}" >> $FIXED_JSON
             
             cat $FIXED_REPORT
             echo ""
