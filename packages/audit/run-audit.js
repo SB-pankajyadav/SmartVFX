@@ -1,9 +1,29 @@
 #!/usr/bin/env node
 const { exec } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
-// Produce one merged report file named 'vulnerability report.json' in current folder (packages/audit)
+// Dynamically determine paths
+const repoRoot = path.resolve(__dirname, '..', '..');
+const packageJsonPath = path.join(repoRoot, 'package.json');
+
+// Read package.json to get project info
+let packageJson = {};
+try {
+  packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+} catch (err) {
+  console.error('Failed to read package.json:', err.message);
+  process.exit(1);
+}
+
+// Output files in packages/audit
 const outFile = path.join(__dirname, 'vulnerability_report.json');
+const dashFile = path.join(__dirname, 'vulnerability_dashboard.json');
+
+console.log(`📦 Project: ${packageJson.name || 'unknown'} v${packageJson.version || '0.0.0'}`);
+console.log(`📁 Repository root: ${repoRoot}`);
+console.log(`📄 Reading from: ${packageJsonPath}`);
+console.log(`📊 Generating reports in: ${__dirname}\n`);
 
 const jqExpr = `{
   high: ([
@@ -66,24 +86,37 @@ function run(cmd) {
 }
 
 async function main() {
+  console.log('🔍 Running npm audit...');
   console.log('Generating merged vulnerability report:', outFile);
-  const cmd = `npm audit --json | jq '${jqExpr}' > "${outFile}"`;
+  
+  // Change to repo root to run npm audit on the correct package.json
+  const cmd = `cd "${repoRoot}" && npm audit --json | jq '${jqExpr}' > "${outFile}"`;
+  
   try {
     await run(cmd);
-    console.log('Saved', outFile);
+    console.log('✅ Saved', outFile);
+    
     // Generate dashboard with counts for each severity
-    const dashOut = path.join(__dirname, 'vulnerability_dashboard.json');
-    const dashCmd = `jq '{high: (.high|length), moderate: (.moderate|length), low: (.low|length)}' "${outFile}" > "${dashOut}"`;
+    const dashCmd = `jq '{high: (.high|length), moderate: (.moderate|length), low: (.low|length)}' "${outFile}" > "${dashFile}"`;
     try {
       await run(dashCmd);
-      console.log('Saved', dashOut);
+      console.log('✅ Saved', dashFile);
+      
+      // Display summary
+      const dashboard = JSON.parse(fs.readFileSync(dashFile, 'utf8'));
+      const total = (dashboard.high || 0) + (dashboard.moderate || 0) + (dashboard.low || 0);
+      console.log('\n📊 Vulnerability Summary:');
+      console.log(`   🔴 High:     ${dashboard.high || 0}`);
+      console.log(`   🟠 Moderate: ${dashboard.moderate || 0}`);
+      console.log(`   🟡 Low:      ${dashboard.low || 0}`);
+      console.log(`   📦 Total:    ${total}\n`);
     } catch (e) {
-      console.error('Failed to generate dashboard', e.err ? e.err.message : e);
+      console.error('❌ Failed to generate dashboard', e.err ? e.err.message : e);
       if (e.stderr) console.error(e.stderr);
       process.exitCode = 1;
     }
   } catch (e) {
-    console.error('Failed to generate report', e.err ? e.err.message : e);
+    console.error('❌ Failed to generate report', e.err ? e.err.message : e);
     if (e.stderr) console.error(e.stderr);
     process.exitCode = 1;
   }
