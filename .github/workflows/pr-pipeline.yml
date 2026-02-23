@@ -248,10 +248,12 @@ jobs:
         run: node ./packages/audit/run-audit.js ./packages/audit
         continue-on-error: true
       
-      - name: Run autofix (without API key - will use fallback)
+      - name: Run autofix with Google Gemini API
+        env:
+          GOOGLE_GENAI_API_KEY: ${{ secrets.HACKATHON_PROJECT }}
         run: |
-          echo "Running autofix with audit fallback mode..."
-          python3 ./packages/autofix/llm.py 2>&1 | tee reports/autofix/autofix-log.txt || echo "Autofix completed with fallback"
+          echo "Running autofix with Google Gemini AI..."
+          python3 ./packages/autofix/llm.py 2>&1 | tee reports/autofix/autofix-log.txt || echo "Autofix completed"
         continue-on-error: true
       
       - name: Reinstall dependencies with updated package.json
