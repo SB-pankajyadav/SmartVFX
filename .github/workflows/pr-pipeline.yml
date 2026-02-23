@@ -378,88 +378,129 @@ jobs:
             cat reports/post-fix/vulnerability_dashboard.json
           fi
       
-      - name: Upload post-fix report
-        uses: actions/upload-artifact@v4
-        with:
-          name: post-fix-vulnerability-report
-          path: reports/post-fix/
-          if-no-files-found: warn
-      
-      - name: Compare pre-fix and post-fix reports
+      - name: Generate Fixed Vulnerabilities Report
         run: |
-          echo "📊 Comparing Pre-Fix vs Post-Fix Vulnerability Counts"
-          echo "======================================================="
+          echo "📊 Generating Fixed Vulnerabilities Report"
+          echo "==========================================="
           
-          # Create comparison report file
-          COMPARISON_FILE="reports/post-fix/fix-comparison.txt"
-          echo "Vulnerability Fix Comparison Report" > $COMPARISON_FILE
-          echo "Generated: $(date)" >> $COMPARISON_FILE
-          echo "======================================" >> $COMPARISON_FILE
-          echo "" >> $COMPARISON_FILE
+          # Create Fixed Vulnerabilities report directory
+          mkdir -p reports/fixed-vulnerabilities
+          FIXED_REPORT="reports/fixed-vulnerabilities/Fixed_Vulnerabilities.txt"
+          FIXED_JSON="reports/fixed-vulnerabilities/fixed_vulnerabilities.json"
+          
+          echo "==================================================" > $FIXED_REPORT
+          echo "         FIXED VULNERABILITIES REPORT" >> $FIXED_REPORT
+          echo "==================================================" >> $FIXED_REPORT
+          echo "Generated: $(date)" >> $FIXED_REPORT
+          echo "==================================================" >> $FIXED_REPORT
+          echo "" >> $FIXED_REPORT
           
           # Compare pre-fix and post-fix dashboards
-          if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
+          if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ] && [ -f reports/post-fix/vulnerability_dashboard.json ]; then
             PRE_HIGH=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
             PRE_MODERATE=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
             PRE_LOW=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
             
-            echo "Pre-Fix Vulnerabilities:" | tee -a $COMPARISON_FILE
-            echo "  High: $PRE_HIGH" | tee -a $COMPARISON_FILE
-            echo "  Moderate: $PRE_MODERATE" | tee -a $COMPARISON_FILE
-            echo "  Low: $PRE_LOW" | tee -a $COMPARISON_FILE
-            echo "" | tee -a $COMPARISON_FILE
-          else
-            echo "⚠️ Pre-fix dashboard not found for comparison" | tee -a $COMPARISON_FILE
-          fi
-          
-          if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
             POST_HIGH=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
             POST_MODERATE=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
             POST_LOW=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
             
-            echo "Post-Fix Vulnerabilities:" | tee -a $COMPARISON_FILE
-            echo "  High: $POST_HIGH" | tee -a $COMPARISON_FILE
-            echo "  Moderate: $POST_MODERATE" | tee -a $COMPARISON_FILE
-            echo "  Low: $POST_LOW" | tee -a $COMPARISON_FILE
-            echo "" | tee -a $COMPARISON_FILE
+            DIFF_HIGH=$((PRE_HIGH - POST_HIGH))
+            DIFF_MODERATE=$((PRE_MODERATE - POST_MODERATE))
+            DIFF_LOW=$((PRE_LOW - POST_LOW))
+            TOTAL_FIXED=$((DIFF_HIGH + DIFF_MODERATE + DIFF_LOW))
             
-            # Calculate improvements if both reports exist
-            if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
-              DIFF_HIGH=$((PRE_HIGH - POST_HIGH))
-              DIFF_MODERATE=$((PRE_MODERATE - POST_MODERATE))
-              DIFF_LOW=$((PRE_LOW - POST_LOW))
-              TOTAL_FIXED=$((DIFF_HIGH + DIFF_MODERATE + DIFF_LOW))
-              
-              echo "📈 Improvement:" | tee -a $COMPARISON_FILE
-              echo "  High: $DIFF_HIGH fixed" | tee -a $COMPARISON_FILE
-              echo "  Moderate: $DIFF_MODERATE fixed" | tee -a $COMPARISON_FILE
-              echo "  Low: $DIFF_LOW fixed" | tee -a $COMPARISON_FILE
-              echo "  Total: $TOTAL_FIXED vulnerabilities fixed" | tee -a $COMPARISON_FILE
-              echo "" | tee -a $COMPARISON_FILE
-              
-              if [ $TOTAL_FIXED -eq 0 ]; then
-                echo "⚠️ WARNING: No vulnerabilities were fixed!" | tee -a $COMPARISON_FILE
-                echo "This likely means the autofix script did not update package.json." | tee -a $COMPARISON_FILE
-                echo "Check the autofix-log.txt for errors." | tee -a $COMPARISON_FILE
-                echo "" | tee -a $COMPARISON_FILE
-                echo "Possible causes:" | tee -a $COMPARISON_FILE
-                echo "  - API key not set correctly" | tee -a $COMPARISON_FILE
-                echo "  - LLM API rate limit exceeded" | tee -a $COMPARISON_FILE
-                echo "  - Python script encountered an error" | tee -a $COMPARISON_FILE
-              else
-                echo "✅ Successfully fixed $TOTAL_FIXED vulnerabilities!" | tee -a $COMPARISON_FILE
-              fi
+            echo "VULNERABILITY COUNTS" >> $FIXED_REPORT
+            echo "--------------------" >> $FIXED_REPORT
+            echo "" >> $FIXED_REPORT
+            echo "Before Fix:" >> $FIXED_REPORT
+            echo "  High:     $PRE_HIGH" >> $FIXED_REPORT
+            echo "  Moderate: $PRE_MODERATE" >> $FIXED_REPORT
+            echo "  Low:      $PRE_LOW" >> $FIXED_REPORT
+            echo "  Total:    $((PRE_HIGH + PRE_MODERATE + PRE_LOW))" >> $FIXED_REPORT
+            echo "" >> $FIXED_REPORT
+            echo "After Fix:" >> $FIXED_REPORT
+            echo "  High:     $POST_HIGH" >> $FIXED_REPORT
+            echo "  Moderate: $POST_MODERATE" >> $FIXED_REPORT
+            echo "  Low:      $POST_LOW" >> $FIXED_REPORT
+            echo "  Total:    $((POST_HIGH + POST_MODERATE + POST_LOW))" >> $FIXED_REPORT
+            echo "" >> $FIXED_REPORT
+            echo "==================================================" >> $FIXED_REPORT
+            echo "VULNERABILITIES FIXED" >> $FIXED_REPORT
+            echo "==================================================" >> $FIXED_REPORT
+            echo "" >> $FIXED_REPORT
+            echo "  High:     $DIFF_HIGH fixed" >> $FIXED_REPORT
+            echo "  Moderate: $DIFF_MODERATE fixed" >> $FIXED_REPORT
+            echo "  Low:      $DIFF_LOW fixed" >> $FIXED_REPORT
+            echo "" >> $FIXED_REPORT
+            echo "  TOTAL:    $TOTAL_FIXED vulnerabilities fixed" >> $FIXED_REPORT
+            echo "" >> $FIXED_REPORT
+            
+            if [ $TOTAL_FIXED -gt 0 ]; then
+              echo "✅ STATUS: SUCCESS" >> $FIXED_REPORT
+              echo "==================================================" >> $FIXED_REPORT
+            else
+              echo "⚠️  STATUS: NO FIXES APPLIED" >> $FIXED_REPORT
+              echo "==================================================" >> $FIXED_REPORT
+              echo "" >> $FIXED_REPORT
+              echo "Possible reasons:" >> $FIXED_REPORT
+              echo "  - API key not configured" >> $FIXED_REPORT
+              echo "  - LLM API rate limit exceeded" >> $FIXED_REPORT
+              echo "  - Autofix script encountered an error" >> $FIXED_REPORT
+              echo "" >> $FIXED_REPORT
+              echo "Check: reports/autofix/autofix-log.txt" >> $FIXED_REPORT
+              echo "==================================================" >> $FIXED_REPORT
             fi
+            
+            # Create JSON version
+            cat > $FIXED_JSON << EOF
+{
+  "generated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "summary": {
+    "total_fixed": $TOTAL_FIXED,
+    "high_fixed": $DIFF_HIGH,
+    "moderate_fixed": $DIFF_MODERATE,
+    "low_fixed": $DIFF_LOW
+  },
+  "before_fix": {
+    "high": $PRE_HIGH,
+    "moderate": $PRE_MODERATE,
+    "low": $PRE_LOW,
+    "total": $((PRE_HIGH + PRE_MODERATE + PRE_LOW))
+  },
+  "after_fix": {
+    "high": $POST_HIGH,
+    "moderate": $POST_MODERATE,
+    "low": $POST_LOW,
+    "total": $((POST_HIGH + POST_MODERATE + POST_LOW))
+  },
+  "status": "$(if [ $TOTAL_FIXED -gt 0 ]; then echo 'success'; else echo 'no_fixes'; fi)"
+}
+EOF
+            
+            cat $FIXED_REPORT
+            echo ""
+            echo "JSON report:"
+            cat $FIXED_JSON
           else
-            echo "❌ Post-fix dashboard not found" | tee -a $COMPARISON_FILE
+            echo "❌ Could not generate comparison - missing reports" | tee -a $FIXED_REPORT
           fi
-          
-          echo "" | tee -a $COMPARISON_FILE
-          echo "For detailed reports, check:" | tee -a $COMPARISON_FILE
-          echo "  - Pre-fix: reports/pre-fix/" | tee -a $COMPARISON_FILE
-          echo "  - Post-fix: reports/post-fix/" | tee -a $COMPARISON_FILE
-          echo "  - Autofix log: reports/autofix/autofix-log.txt" | tee -a $COMPARISON_FILE
         continue-on-error: true
+      
+      - name: Delete post-fix vulnerability report files
+        run: |
+          echo "Removing post-fix vulnerability report files..."
+          rm -f reports/post-fix/vulnerability_report.json
+          rm -f reports/post-fix/vulnerability_dashboard.json
+          echo "✅ Post-fix vulnerability reports deleted"
+        continue-on-error: true
+      
+      - name: Upload Fixed Vulnerabilities Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixed-vulnerabilities-report
+          path: reports/fixed-vulnerabilities/
+          if-no-files-found: warn
   
   test:
     name: Run Tests (npm test)
@@ -531,12 +572,12 @@ jobs:
           
           echo "✅ Pipeline Summary:"
           echo "   - All reports saved in reports/ folder"
-          echo "   - Pre-Fix: reports/pre-fix/"
-          echo "   - Post-Fix: reports/post-fix/"
+          echo "   - Pre-Fix Report: reports/pre-fix/"
+          echo "   - Fixed Vulnerabilities: reports/fixed-vulnerabilities/"
           echo "   - Project Setup: reports/project-setup/"
           echo "   - Start App: reports/start-app/"
           echo "   - Python Setup: reports/py-setup/"
-          echo "   - Autofix: reports/autofix/"
+          echo "   - Autofix Log: reports/autofix/"
           echo "   - Tests: reports/tests/"
           echo ""
           echo "✅ All artifacts uploaded and available for download"
