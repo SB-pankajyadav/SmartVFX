@@ -318,29 +318,48 @@ jobs:
           path: reports/pre-fix-comparison/
         continue-on-error: true
       
-      - name: Verify package.json was downloaded
+      - name: Verify package.json was downloaded and updated
         run: |
           if [ -f package.json ]; then
             echo "✅ package.json found"
-            echo "📦 Current dependencies:"
+            echo "📦 Checking if package.json was modified by autofix..."
+            
+            # Compare with original to see if it was updated
+            git fetch origin
+            if git diff HEAD package.json | grep -q "express\|mongoose\|body-parser\|jsonwebtoken\|lodash\|got"; then
+              echo "✅ package.json has dependency changes!"
+              echo "📝 Changes detected:"
+              git diff HEAD package.json | grep "express\|mongoose\|body-parser\|jsonwebtoken\|lodash\|got" || true
+            else
+              echo "⚠️ WARNING: package.json appears unchanged from original"
+              echo "This means autofix likely failed to update dependencies"
+            fi
+            
+            echo ""
+            echo "📦 Current dependencies in package.json:"
             cat package.json | grep -A 20 '"dependencies"'
           else
             echo "❌ package.json not found - using original from checkout"
+            exit 1
           fi
       
       - name: Install updated dependencies
-        run: npm install
+        run: |
+          echo "Installing dependencies with updated package.json..."
+          npm install
+          echo "✅ Dependencies installed"
+          echo ""
+          echo "📦 Installed package versions:"
+          npm list --depth=0 || true
       
       - name: Create reports directory
         run: mkdir -p reports/post-fix
       
-      - name: Display updated package.json
-        run: |
-          echo "📦 Updated package.json dependencies:"
-          cat package.json | grep -A 20 '"dependencies"'
-      
       - name: Generate post-fix vulnerability report
-        run: node ./packages/audit/run-audit.js ./reports/post-fix
+        run: |
+          echo "Generating post-fix vulnerability report..."
+          node ./packages/audit/run-audit.js ./reports/post-fix
+          echo "✅ Post-fix report generated"
         continue-on-error: true
       
       - name: Display post-fix report
@@ -371,19 +390,26 @@ jobs:
           echo "📊 Comparing Pre-Fix vs Post-Fix Vulnerability Counts"
           echo "======================================================="
           
+          # Create comparison report file
+          COMPARISON_FILE="reports/post-fix/fix-comparison.txt"
+          echo "Vulnerability Fix Comparison Report" > $COMPARISON_FILE
+          echo "Generated: $(date)" >> $COMPARISON_FILE
+          echo "======================================" >> $COMPARISON_FILE
+          echo "" >> $COMPARISON_FILE
+          
           # Compare pre-fix and post-fix dashboards
           if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
             PRE_HIGH=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
             PRE_MODERATE=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
             PRE_LOW=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
             
-            echo "Pre-Fix Vulnerabilities:"
-            echo "  High: $PRE_HIGH"
-            echo "  Moderate: $PRE_MODERATE"
-            echo "  Low: $PRE_LOW"
-            echo ""
+            echo "Pre-Fix Vulnerabilities:" | tee -a $COMPARISON_FILE
+            echo "  High: $PRE_HIGH" | tee -a $COMPARISON_FILE
+            echo "  Moderate: $PRE_MODERATE" | tee -a $COMPARISON_FILE
+            echo "  Low: $PRE_LOW" | tee -a $COMPARISON_FILE
+            echo "" | tee -a $COMPARISON_FILE
           else
-            echo "⚠️ Pre-fix dashboard not found for comparison"
+            echo "⚠️ Pre-fix dashboard not found for comparison" | tee -a $COMPARISON_FILE
           fi
           
           if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
@@ -391,33 +417,48 @@ jobs:
             POST_MODERATE=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
             POST_LOW=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
             
-            echo "Post-Fix Vulnerabilities:"
-            echo "  High: $POST_HIGH"
-            echo "  Moderate: $POST_MODERATE"
-            echo "  Low: $POST_LOW"
-            echo ""
+            echo "Post-Fix Vulnerabilities:" | tee -a $COMPARISON_FILE
+            echo "  High: $POST_HIGH" | tee -a $COMPARISON_FILE
+            echo "  Moderate: $POST_MODERATE" | tee -a $COMPARISON_FILE
+            echo "  Low: $POST_LOW" | tee -a $COMPARISON_FILE
+            echo "" | tee -a $COMPARISON_FILE
             
             # Calculate improvements if both reports exist
             if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
               DIFF_HIGH=$((PRE_HIGH - POST_HIGH))
               DIFF_MODERATE=$((PRE_MODERATE - POST_MODERATE))
               DIFF_LOW=$((PRE_LOW - POST_LOW))
+              TOTAL_FIXED=$((DIFF_HIGH + DIFF_MODERATE + DIFF_LOW))
               
-              echo "📈 Improvement:"
-              echo "  High: $DIFF_HIGH fixed"
-              echo "  Moderate: $DIFF_MODERATE fixed"
-              echo "  Low: $DIFF_LOW fixed"
+              echo "📈 Improvement:" | tee -a $COMPARISON_FILE
+              echo "  High: $DIFF_HIGH fixed" | tee -a $COMPARISON_FILE
+              echo "  Moderate: $DIFF_MODERATE fixed" | tee -a $COMPARISON_FILE
+              echo "  Low: $DIFF_LOW fixed" | tee -a $COMPARISON_FILE
+              echo "  Total: $TOTAL_FIXED vulnerabilities fixed" | tee -a $COMPARISON_FILE
+              echo "" | tee -a $COMPARISON_FILE
               
-              if [ $DIFF_HIGH -eq 0 ] && [ $DIFF_MODERATE -eq 0 ] && [ $DIFF_LOW -eq 0 ]; then
-                echo ""
-                echo "⚠️ WARNING: No vulnerabilities were fixed!"
-                echo "This likely means the autofix script did not update package.json."
-                echo "Check the autofix-log.txt for errors."
+              if [ $TOTAL_FIXED -eq 0 ]; then
+                echo "⚠️ WARNING: No vulnerabilities were fixed!" | tee -a $COMPARISON_FILE
+                echo "This likely means the autofix script did not update package.json." | tee -a $COMPARISON_FILE
+                echo "Check the autofix-log.txt for errors." | tee -a $COMPARISON_FILE
+                echo "" | tee -a $COMPARISON_FILE
+                echo "Possible causes:" | tee -a $COMPARISON_FILE
+                echo "  - API key not set correctly" | tee -a $COMPARISON_FILE
+                echo "  - LLM API rate limit exceeded" | tee -a $COMPARISON_FILE
+                echo "  - Python script encountered an error" | tee -a $COMPARISON_FILE
+              else
+                echo "✅ Successfully fixed $TOTAL_FIXED vulnerabilities!" | tee -a $COMPARISON_FILE
               fi
             fi
           else
-            echo "❌ Post-fix dashboard not found"
+            echo "❌ Post-fix dashboard not found" | tee -a $COMPARISON_FILE
           fi
+          
+          echo "" | tee -a $COMPARISON_FILE
+          echo "For detailed reports, check:" | tee -a $COMPARISON_FILE
+          echo "  - Pre-fix: reports/pre-fix/" | tee -a $COMPARISON_FILE
+          echo "  - Post-fix: reports/post-fix/" | tee -a $COMPARISON_FILE
+          echo "  - Autofix log: reports/autofix/autofix-log.txt" | tee -a $COMPARISON_FILE
         continue-on-error: true
   
   test:
