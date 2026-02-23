@@ -119,8 +119,80 @@ jobs:
       - name: Backup Original package.json
         run: cp package.json package.json.backup
 
-      - name: Run Auto-Fix with LLM
-        run: npm run autofix
+      - name: Verify Python Environment
+        run: |
+          echo "=== Python Environment Check ==="
+          python3 --version
+          which python3
+          echo ""
+          echo "=== Virtual Environment Status ==="
+          ls -la packages/autofix/ || echo "Autofix directory not found"
+          if [ -d packages/autofix/.venv ]; then
+            echo "✅ Virtual environment exists"
+            source packages/autofix/.venv/bin/activate
+            echo "Python in venv: $(which python3)"
+            echo "Pip packages:"
+            pip list
+          else
+            echo "❌ Virtual environment not found"
+          fi
+
+      - name: Check LLM Script and Dependencies
+        run: |
+          echo "=== LLM Script Check ==="
+          ls -la packages/autofix/llm.py || echo "❌ llm.py not found"
+          cat packages/autofix/requirements.txt || echo "❌ requirements.txt not found"
+          echo ""
+          echo "=== Audit Files Check ==="
+          ls -la packages/audit/
+          if [ -f packages/audit/vulnerability_report.json ]; then
+            echo "✅ vulnerability_report.json exists"
+            echo "File size: $(wc -c < packages/audit/vulnerability_report.json) bytes"
+          else
+            echo "❌ vulnerability_report.json not found"
+          fi
+
+      - name: Run Auto-Fix with LLM (with detailed logging)
+        run: |
+          echo "=== Starting Auto-Fix Process ==="
+          echo "Current directory: $(pwd)"
+          echo "Package.json before:"
+          cat package.json
+          echo ""
+          echo "=== Running npm run autofix ==="
+          npm run autofix 2>&1 | tee autofix-output.log || echo "Autofix command failed with exit code $?"
+          echo ""
+          echo "=== Auto-Fix Process Complete ==="
+          echo "Package.json after:"
+          cat package.json
+        continue-on-error: true
+
+      - name: Check Auto-Fix Results
+        run: |
+          echo "=== Checking Fix Results ==="
+          if [ -f packages/audit/fix_applied.json ]; then
+            echo "✅ fix_applied.json created"
+            cat packages/audit/fix_applied.json
+          else
+            echo "❌ fix_applied.json not found"
+          fi
+          echo ""
+          echo "=== Package.json Diff ==="
+          diff package.json.backup package.json || echo "No changes to package.json"
+          echo ""
+          echo "=== Auto-Fix Output Log ==="
+          if [ -f autofix-output.log ]; then
+            cat autofix-output.log
+          fi
+
+      - name: Upload Auto-Fix Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: autofix-debug-logs
+          path: |
+            autofix-output.log
+          retention-days: 30
+        if: always()
         continue-on-error: true
 
       - name: Run Post-Fix Audit
