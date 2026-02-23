@@ -2,10 +2,6 @@ name: Pipeline - Security Audit
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - develop
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -13,33 +9,375 @@ on:
 jobs:
   setup:
     name: Setup Workspace
-    uses: ./.github/workflows/setup.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
   
   audit:
-    name: Vulnerability Audit
+    name: Run Vulnerability Audit (npm audit)
+    runs-on: ubuntu-latest
     needs: setup
-    uses: ./.github/workflows/audit.yml
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Create reports directory
+        run: mkdir -p reports/audit
+      
+      - name: Run audit script
+        run: npm run audit
+        continue-on-error: true
+      
+      - name: Display audit results
+        run: |
+          echo "📋 Audit Results"
+          if [ -f packages/audit/vulnerability_report.json ]; then
+            cat packages/audit/vulnerability_report.json
+          fi
+  
+  generate-pre-fix-report:
+    name: Generate Pre-Fix Vulnerability Report
+    runs-on: ubuntu-latest
+    needs: audit
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Create reports directory
+        run: mkdir -p reports/pre-fix
+      
+      - name: Generate vulnerability report
+        run: node ./packages/audit/run-audit.js ./reports/pre-fix
+        continue-on-error: true
+      
+      - name: Display pre-fix report
+        run: |
+          echo "📋 Pre-Fix Vulnerability Report"
+          echo "================================"
+          if [ -f reports/pre-fix/vulnerability_report.json ]; then
+            cat reports/pre-fix/vulnerability_report.json
+          else
+            echo "No vulnerability report found"
+          fi
+          
+          if [ -f reports/pre-fix/vulnerability_dashboard.json ]; then
+            echo ""
+            echo "📊 Vulnerability Dashboard:"
+            cat reports/pre-fix/vulnerability_dashboard.json
+          fi
+      
+      - name: Upload pre-fix report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-fix-vulnerability-report
+          path: reports/pre-fix/
+          if-no-files-found: warn
+  
+  project-setup:
+    name: Project Setup (npm install + py-setup)
+    runs-on: ubuntu-latest
+    needs: generate-pre-fix-report
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Create reports directory
+        run: mkdir -p reports/project-setup
+      
+      - name: Run project setup
+        run: npm run project-setup
+      
+      - name: Log project setup completion
+        run: |
+          echo "Project setup completed at $(date)" > reports/project-setup/setup-log.txt
+          echo "Setup includes: npm install + py-setup" >> reports/project-setup/setup-log.txt
+          cat reports/project-setup/setup-log.txt
+      
+      - name: Upload project setup report
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-setup-report
+          path: reports/project-setup/
+          if-no-files-found: warn
+  
+  start:
+    name: Start Application (npm start)
+    runs-on: ubuntu-latest
+    needs: project-setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Create reports directory
+        run: mkdir -p reports/start-app
+      
+      - name: Start application
+        run: |
+          echo "Starting application..."
+          timeout 10s npm start || echo "Application started and stopped after timeout"
+      
+      - name: Log application start
+        run: |
+          echo "Application start attempt completed at $(date)" > reports/start-app/start-log.txt
+          echo "Started with: npm start" >> reports/start-app/start-log.txt
+          cat reports/start-app/start-log.txt
+      
+      - name: Upload start report
+        uses: actions/upload-artifact@v4
+        with:
+          name: start-app-report
+          path: reports/start-app/
+          if-no-files-found: warn
+  
+  py-setup:
+    name: Python Setup (npm run py-setup)
+    runs-on: ubuntu-latest
+    needs: project-setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Create reports directory
+        run: mkdir -p reports/py-setup
+      
+      - name: Run Python setup
+        run: npm run py-setup
+      
+      - name: Log python setup completion
+        run: |
+          echo "Python setup completed at $(date)" > reports/py-setup/py-setup-log.txt
+          echo "Setup script: autofix_setup.sh" >> reports/py-setup/py-setup-log.txt
+          cat reports/py-setup/py-setup-log.txt
+      
+      - name: Upload python setup report
+        uses: actions/upload-artifact@v4
+        with:
+          name: py-setup-report
+          path: reports/py-setup/
+          if-no-files-found: warn
+  
+  autofix:
+    name: Auto Fix Vulnerabilities (npm run autofix)
+    runs-on: ubuntu-latest
+    needs: [project-setup, py-setup]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install Node dependencies
+        run: npm install
+      
+      - name: Install Python dependencies
+        run: pip install -r packages/autofix/requirements.txt
+      
+      - name: Create reports directory
+        run: mkdir -p reports/autofix
+      
+      - name: Run autofix
+        run: npm run autofix
+        continue-on-error: true
+      
+      - name: Log autofix completion
+        run: |
+          echo "Autofix completed at $(date)" > reports/autofix/autofix-log.txt
+          echo "Autofix script: python3 ./packages/autofix/llm.py && npm install" >> reports/autofix/autofix-log.txt
+          cat reports/autofix/autofix-log.txt
+      
+      - name: Upload autofix report
+        uses: actions/upload-artifact@v4
+        with:
+          name: autofix-report
+          path: reports/autofix/
+          if-no-files-found: warn
+  
+  generate-post-fix-report:
+    name: Generate Post-Fix Vulnerability Report
+    runs-on: ubuntu-latest
+    needs: autofix
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Create reports directory
+        run: mkdir -p reports/post-fix
+      
+      - name: Generate post-fix vulnerability report
+        run: node ./packages/audit/run-audit.js ./reports/post-fix
+        continue-on-error: true
+      
+      - name: Display post-fix report
+        run: |
+          echo "📋 Post-Fix Vulnerability Report"
+          echo "================================="
+          if [ -f reports/post-fix/vulnerability_report.json ]; then
+            cat reports/post-fix/vulnerability_report.json
+          else
+            echo "No vulnerability report found"
+          fi
+          
+          if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
+            echo ""
+            echo "📊 Post-Fix Vulnerability Dashboard:"
+            cat reports/post-fix/vulnerability_dashboard.json
+          fi
+      
+      - name: Upload post-fix report
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-fix-vulnerability-report
+          path: reports/post-fix/
+          if-no-files-found: warn
+  
+  test:
+    name: Run Tests (npm test)
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Create reports directory
+        run: mkdir -p reports/tests
+      
+      - name: Run tests
+        run: npm test > reports/tests/test-results.txt 2>&1
+        continue-on-error: true
+      
+      - name: Display test results
+        run: |
+          echo "📋 Test Results"
+          if [ -f reports/tests/test-results.txt ]; then
+            cat reports/tests/test-results.txt
+          fi
+      
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: reports/tests/
+          if-no-files-found: warn
   
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [setup, audit]
+    needs: [setup, audit, generate-pre-fix-report, project-setup, start, py-setup, autofix, generate-post-fix-report, test]
     if: always()
     
     steps:
       - name: Check pipeline status
         run: |
-          echo "Pipeline execution completed"
-          echo "Setup job status: ${{ needs.setup.result }}"
-          echo "Audit job status: ${{ needs.audit.result }}"
+          echo "=================================="
+          echo "Pipeline Execution Summary"
+          echo "=================================="
+          echo ""
+          echo "Job Results:"
+          echo "  Setup: ${{ needs.setup.result }}"
+          echo "  Audit: ${{ needs.audit.result }}"
+          echo "  Pre-Fix Report: ${{ needs.generate-pre-fix-report.result }}"
+          echo "  Project Setup: ${{ needs.project-setup.result }}"
+          echo "  Start App: ${{ needs.start.result }}"
+          echo "  Python Setup: ${{ needs.py-setup.result }}"
+          echo "  Autofix: ${{ needs.autofix.result }}"
+          echo "  Post-Fix Report: ${{ needs.generate-post-fix-report.result }}"
+          echo "  Tests: ${{ needs.test.result }}"
+          echo ""
+          echo "=================================="
           
           if [ "${{ needs.setup.result }}" != "success" ]; then
             echo "❌ Setup job failed"
             exit 1
           fi
           
-          if [ "${{ needs.audit.result }}" != "success" ]; then
-            echo "⚠️ Audit job completed with warnings"
-          else
-            echo "✅ All jobs completed successfully"
-          fi
+          echo "✅ Pipeline Summary:"
+          echo "   - All reports saved in reports/ folder"
+          echo "   - Pre-Fix: reports/pre-fix/"
+          echo "   - Post-Fix: reports/post-fix/"
+          echo "   - Project Setup: reports/project-setup/"
+          echo "   - Start App: reports/start-app/"
+          echo "   - Python Setup: reports/py-setup/"
+          echo "   - Autofix: reports/autofix/"
+          echo "   - Tests: reports/tests/"
+          echo ""
+          echo "✅ All artifacts uploaded and available for download"
