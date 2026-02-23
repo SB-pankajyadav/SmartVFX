@@ -93,6 +93,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
@@ -224,6 +225,15 @@ jobs:
       - name: Commit Fixed package.json
         run: |
           echo "=== Committing Fixed Dependencies ==="
+          
+          # Ensure we're on a branch, not detached HEAD
+          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          echo "Target branch: $BRANCH_NAME"
+          git checkout "$BRANCH_NAME" || {
+            echo "Failed to checkout branch, trying to create it..."
+            git checkout -b "$BRANCH_NAME"
+          }
+          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
@@ -245,11 +255,11 @@ jobs:
               -m "Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             
             echo "=== Pushing changes to repository ==="
-            git push || {
+            git push origin "$BRANCH_NAME" || {
               echo "❌ Failed to push changes"
               exit 1
             }
-            echo "✅ Changes successfully pushed to ${{ github.ref_name }}"
+            echo "✅ Changes successfully pushed to $BRANCH_NAME"
           fi
         continue-on-error: false
 
