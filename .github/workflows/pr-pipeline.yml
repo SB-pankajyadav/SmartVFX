@@ -253,19 +253,29 @@ jobs:
           GOOGLE_GENAI_API_KEY: ${{ secrets.HACKATHON_PROJECT }}
         run: |
           echo "Running autofix with Google Gemini AI..."
-          python3 ./packages/autofix/llm.py 2>&1 | tee reports/autofix/autofix-log.txt || echo "Autofix completed"
-        continue-on-error: true
-      
-      - name: Reinstall dependencies with updated package.json
-        run: npm install
+          echo "API Key status: $(if [ -n "$GOOGLE_GENAI_API_KEY" ]; then echo 'SET'; else echo 'NOT SET'; fi)"
+          echo "---" >> reports/autofix/autofix-log.txt
+          python3 ./packages/autofix/llm.py 2>&1 | tee -a reports/autofix/autofix-log.txt
+          EXIT_CODE=$?
+          echo "Autofix exit code: $EXIT_CODE" | tee -a reports/autofix/autofix-log.txt
         continue-on-error: true
       
       - name: Check if package.json was updated
         run: |
-          echo "Checking package.json changes..."
-          git diff package.json || echo "No changes to package.json"
           echo "---" >> reports/autofix/autofix-log.txt
-          git diff package.json >> reports/autofix/autofix-log.txt || echo "No changes" >> reports/autofix/autofix-log.txt
+          echo "Checking package.json changes..." | tee -a reports/autofix/autofix-log.txt
+          if git diff --exit-code package.json > /dev/null 2>&1; then
+            echo "❌ No changes to package.json detected" | tee -a reports/autofix/autofix-log.txt
+          else
+            echo "✅ package.json was updated:" | tee -a reports/autofix/autofix-log.txt
+            git diff package.json | tee -a reports/autofix/autofix-log.txt
+          fi
+      
+      - name: Reinstall dependencies with updated package.json
+        run: |
+          echo "Installing updated dependencies..." | tee -a reports/autofix/autofix-log.txt
+          npm install 2>&1 | tee -a reports/autofix/autofix-log.txt
+        continue-on-error: true
       
       - name: Upload modified package.json
         uses: actions/upload-artifact@v4
@@ -299,6 +309,24 @@ jobs:
         with:
           name: updated-package-json
           path: .
+        continue-on-error: true
+      
+      - name: Download pre-fix report for comparison
+        uses: actions/download-artifact@v4
+        with:
+          name: pre-fix-vulnerability-report
+          path: reports/pre-fix-comparison/
+        continue-on-error: true
+      
+      - name: Verify package.json was downloaded
+        run: |
+          if [ -f package.json ]; then
+            echo "✅ package.json found"
+            echo "📦 Current dependencies:"
+            cat package.json | grep -A 20 '"dependencies"'
+          else
+            echo "❌ package.json not found - using original from checkout"
+          fi
       
       - name: Install updated dependencies
         run: npm install
@@ -337,6 +365,60 @@ jobs:
           name: post-fix-vulnerability-report
           path: reports/post-fix/
           if-no-files-found: warn
+      
+      - name: Compare pre-fix and post-fix reports
+        run: |
+          echo "📊 Comparing Pre-Fix vs Post-Fix Vulnerability Counts"
+          echo "======================================================="
+          
+          # Compare pre-fix and post-fix dashboards
+          if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
+            PRE_HIGH=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
+            PRE_MODERATE=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
+            PRE_LOW=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
+            
+            echo "Pre-Fix Vulnerabilities:"
+            echo "  High: $PRE_HIGH"
+            echo "  Moderate: $PRE_MODERATE"
+            echo "  Low: $PRE_LOW"
+            echo ""
+          else
+            echo "⚠️ Pre-fix dashboard not found for comparison"
+          fi
+          
+          if [ -f reports/post-fix/vulnerability_dashboard.json ]; then
+            POST_HIGH=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
+            POST_MODERATE=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
+            POST_LOW=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
+            
+            echo "Post-Fix Vulnerabilities:"
+            echo "  High: $POST_HIGH"
+            echo "  Moderate: $POST_MODERATE"
+            echo "  Low: $POST_LOW"
+            echo ""
+            
+            # Calculate improvements if both reports exist
+            if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ]; then
+              DIFF_HIGH=$((PRE_HIGH - POST_HIGH))
+              DIFF_MODERATE=$((PRE_MODERATE - POST_MODERATE))
+              DIFF_LOW=$((PRE_LOW - POST_LOW))
+              
+              echo "📈 Improvement:"
+              echo "  High: $DIFF_HIGH fixed"
+              echo "  Moderate: $DIFF_MODERATE fixed"
+              echo "  Low: $DIFF_LOW fixed"
+              
+              if [ $DIFF_HIGH -eq 0 ] && [ $DIFF_MODERATE -eq 0 ] && [ $DIFF_LOW -eq 0 ]; then
+                echo ""
+                echo "⚠️ WARNING: No vulnerabilities were fixed!"
+                echo "This likely means the autofix script did not update package.json."
+                echo "Check the autofix-log.txt for errors."
+              fi
+            fi
+          else
+            echo "❌ Post-fix dashboard not found"
+          fi
+        continue-on-error: true
   
   test:
     name: Run Tests (npm test)
