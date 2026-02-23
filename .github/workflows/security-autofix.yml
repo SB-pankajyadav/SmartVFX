@@ -24,13 +24,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install jq (required for audit script)
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -46,6 +44,21 @@ jobs:
       - name: Run Vulnerability Audit
         run: npm run audit
         continue-on-error: true
+      
+      - name: Verify Audit Files Created
+        run: |
+          echo "Checking for audit files..."
+          ls -la packages/audit/ || echo "Audit directory not found"
+          if [ -f packages/audit/vulnerability_dashboard.json ]; then
+            echo "✅ Dashboard file found"
+          else
+            echo "❌ Dashboard file not found"
+          fi
+          if [ -f packages/audit/vulnerability_report.json ]; then
+            echo "✅ Report file found"
+          else
+            echo "❌ Report file not found"
+          fi
 
       - name: Display Pre-Fix Vulnerability Dashboard
         run: |
@@ -65,6 +78,7 @@ jobs:
             packages/audit/vulnerability_dashboard.json
           retention-days: 30
         if: always()
+        continue-on-error: true
 
   autofix:
     name: Auto-Fix Vulnerabilities with LLM
@@ -79,13 +93,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install jq (required for audit script)
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -133,6 +145,7 @@ jobs:
             packages/audit/vulnerability_dashboard.json
           retention-days: 30
         if: always()
+        continue-on-error: true
 
       - name: Upload Modified package.json
         uses: actions/upload-artifact@v4
@@ -143,6 +156,7 @@ jobs:
             package.json.backup
           retention-days: 30
         if: always()
+        continue-on-error: true
 
       - name: Upload Fix Logs
         uses: actions/upload-artifact@v4
@@ -152,6 +166,7 @@ jobs:
             packages/audit/fix_applied.json
           retention-days: 30
         if: always()
+        continue-on-error: true
 
   generate-report:
     name: Generate Fix Report & Summary
@@ -394,17 +409,22 @@ jobs:
       - name: Comment PR with Report (if PR)
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         with:
           script: |
             const fs = require('fs');
-            const report = fs.readFileSync('fix-report.md', 'utf8');
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
+            if (fs.existsSync('fix-report.md')) {
+              const report = fs.readFileSync('fix-report.md', 'utf8');
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: report
+              });
+            } else {
+              console.log('fix-report.md not found, skipping PR comment');
+            }
 
       - name: Job Summary
         run: |
