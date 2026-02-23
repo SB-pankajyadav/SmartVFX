@@ -216,6 +216,30 @@ jobs:
             cat autofix-output.log
           fi
 
+      - name: Commit Fixed package.json
+        run: |
+          echo "=== Committing Fixed Dependencies ==="
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if package.json was modified
+          if git diff --quiet package.json; then
+            echo "ℹ️ No changes to package.json, skipping commit"
+          else
+            echo "✅ package.json was modified, committing changes..."
+            git add package.json
+            git commit -m "fix: auto-update dependencies to resolve security vulnerabilities
+
+- Fixed by GitHub Actions Security Auto-Fix Pipeline
+- Run: ${{ github.run_number }}
+- Commit: ${{ github.sha }}
+- Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            
+            git push origin ${{ github.ref_name }} || echo "Failed to push changes"
+            echo "✅ Changes pushed to repository"
+          fi
+        continue-on-error: true
+
       - name: Upload Auto-Fix Logs
         uses: actions/upload-artifact@v4
         with:
