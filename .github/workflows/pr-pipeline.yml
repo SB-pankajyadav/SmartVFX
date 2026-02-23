@@ -267,6 +267,13 @@ jobs:
           echo "---" >> reports/autofix/autofix-log.txt
           git diff package.json >> reports/autofix/autofix-log.txt || echo "No changes" >> reports/autofix/autofix-log.txt
       
+      - name: Upload modified package.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-package-json
+          path: package.json
+          if-no-files-found: warn
+      
       - name: Upload autofix report
         uses: actions/upload-artifact@v4
         with:
@@ -287,27 +294,22 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Download updated package.json from autofix
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.x'
+          name: updated-package-json
+          path: .
       
-      - name: Install Python dependencies
-        run: pip install -r packages/autofix/requirements.txt
-      
-      - name: Install Node dependencies
+      - name: Install updated dependencies
         run: npm install
       
-      - name: Create reports directories
-        run: mkdir -p reports/post-fix packages/audit
+      - name: Create reports directory
+        run: mkdir -p reports/post-fix
       
-      - name: Re-run autofix to ensure package.json is updated
+      - name: Display updated package.json
         run: |
-          echo "Ensuring package.json updates are applied..."
-          node ./packages/audit/run-audit.js ./packages/audit
-          python3 ./packages/autofix/llm.py || echo "Using fallback mode"
-          npm install
-        continue-on-error: true
+          echo "📦 Updated package.json dependencies:"
+          cat package.json | grep -A 20 '"dependencies"'
       
       - name: Generate post-fix vulnerability report
         run: node ./packages/audit/run-audit.js ./reports/post-fix
