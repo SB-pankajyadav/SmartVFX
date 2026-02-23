@@ -20,34 +20,35 @@ jobs:
       - name: Install dependencies
         run: npm install
       
+      - name: Create reports directory
+        run: mkdir -p reports/audit
+      
       - name: Run vulnerability audit script
-        run: node run-audit.js
+        run: npm run audit -- ./reports/audit
         continue-on-error: true
       
-      - name: Verify reports folder
+      - name: Display audit summary
         if: always()
         run: |
-          echo "Checking reports folder..."
-          ls -la reports/ || echo "Reports folder not found"
-          if [ -d reports ]; then
-            echo "Files in reports folder:"
-            ls -lh reports/
+          echo "📋 Vulnerability Audit Report"
+          echo "=============================="
+          if [ -f reports/audit/vulnerability_report.json ]; then
+            echo "Vulnerability report generated successfully"
+            cat reports/audit/vulnerability_report.json
+          else
+            echo "No vulnerability report found"
+          fi
+          
+          if [ -f reports/audit/vulnerability_dashboard.json ]; then
+            echo ""
+            echo "📊 Vulnerability Dashboard:"
+            cat reports/audit/vulnerability_dashboard.json
           fi
       
       - name: Upload vulnerability report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vulnerability-report
-          path: reports/
+          name: audit-vulnerability-report
+          path: reports/audit/
           if-no-files-found: warn
-      
-      - name: Display audit summary
-        if: always()
-        run: |
-          if [ -f reports/vulnerability_report.json ]; then
-            echo "Vulnerability report generated successfully"
-            cat reports/vulnerability_report.json
-          else
-            echo "No vulnerability report found"
-          fi
