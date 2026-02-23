@@ -322,8 +322,8 @@ jobs:
         run: mkdir -p reports/tests
       
       - name: Run tests
-        run: npm test > reports/tests/test-results.txt 2>&1
-        continue-on-error: true
+        run: |
+          npm test > reports/tests/test-results.txt 2>&1 || true
       
       - name: Display test results
         run: |
