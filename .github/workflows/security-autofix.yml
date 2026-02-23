@@ -228,12 +228,11 @@ jobs:
           else
             echo "✅ package.json was modified, committing changes..."
             git add package.json
-            git commit -m "fix: auto-update dependencies to resolve security vulnerabilities
-
-- Fixed by GitHub Actions Security Auto-Fix Pipeline
-- Run: ${{ github.run_number }}
-- Commit: ${{ github.sha }}
-- Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            git commit -m "fix: auto-update dependencies to resolve security vulnerabilities" \
+              -m "Fixed by GitHub Actions Security Auto-Fix Pipeline" \
+              -m "Run: ${{ github.run_number }}" \
+              -m "Commit: ${{ github.sha }}" \
+              -m "Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             
             git push origin ${{ github.ref_name }} || echo "Failed to push changes"
             echo "✅ Changes pushed to repository"
