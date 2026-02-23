@@ -42,7 +42,6 @@ jobs:
       - name: Create .env file for LLM
         run: |
           echo "GOOGLE_GENAI_API_KEY=${{ secrets.GOOGLE_GENAI_API_KEY }}" > .env
-        if: ${{ secrets.GOOGLE_GENAI_API_KEY != '' }}
 
       - name: Run Vulnerability Audit
         run: npm run audit
@@ -104,7 +103,6 @@ jobs:
       - name: Create .env file for LLM
         run: |
           echo "GOOGLE_GENAI_API_KEY=${{ secrets.GOOGLE_GENAI_API_KEY }}" > .env
-        if: ${{ secrets.GOOGLE_GENAI_API_KEY != '' }}
 
       - name: Backup Original package.json
         run: cp package.json package.json.backup
