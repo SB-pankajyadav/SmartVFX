@@ -76,12 +76,17 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Create reports directory
-        run: mkdir -p reports/pre-fix
+      - name: Create reports directories
+        run: mkdir -p reports/pre-fix packages/audit
       
-      - name: Generate vulnerability report
-        run: node ./packages/audit/run-audit.js ./reports/pre-fix
+      - name: Generate vulnerability report for autofix
+        run: node ./packages/audit/run-audit.js ./packages/audit
         continue-on-error: true
+      
+      - name: Copy pre-fix report for artifacts
+        run: |
+          cp packages/audit/vulnerability_report.json reports/pre-fix/
+          cp packages/audit/vulnerability_dashboard.json reports/pre-fix/
       
       - name: Display pre-fix report
         run: |
@@ -237,17 +242,28 @@ jobs:
         run: pip install -r packages/autofix/requirements.txt
       
       - name: Create reports directory
-        run: mkdir -p reports/autofix
+        run: mkdir -p reports/autofix packages/audit
       
-      - name: Run autofix
-        run: npm run autofix
+      - name: Generate vulnerability report for autofix input
+        run: node ./packages/audit/run-audit.js ./packages/audit
         continue-on-error: true
       
-      - name: Log autofix completion
+      - name: Run autofix (without API key - will use fallback)
         run: |
-          echo "Autofix completed at $(date)" > reports/autofix/autofix-log.txt
-          echo "Autofix script: python3 ./packages/autofix/llm.py && npm install" >> reports/autofix/autofix-log.txt
-          cat reports/autofix/autofix-log.txt
+          echo "Running autofix with audit fallback mode..."
+          python3 ./packages/autofix/llm.py 2>&1 | tee reports/autofix/autofix-log.txt || echo "Autofix completed with fallback"
+        continue-on-error: true
+      
+      - name: Reinstall dependencies with updated package.json
+        run: npm install
+        continue-on-error: true
+      
+      - name: Check if package.json was updated
+        run: |
+          echo "Checking package.json changes..."
+          git diff package.json || echo "No changes to package.json"
+          echo "---" >> reports/autofix/autofix-log.txt
+          git diff package.json >> reports/autofix/autofix-log.txt || echo "No changes" >> reports/autofix/autofix-log.txt
       
       - name: Upload autofix report
         uses: actions/upload-artifact@v4
@@ -269,11 +285,27 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install dependencies
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install Python dependencies
+        run: pip install -r packages/autofix/requirements.txt
+      
+      - name: Install Node dependencies
         run: npm install
       
-      - name: Create reports directory
-        run: mkdir -p reports/post-fix
+      - name: Create reports directories
+        run: mkdir -p reports/post-fix packages/audit
+      
+      - name: Re-run autofix to ensure package.json is updated
+        run: |
+          echo "Ensuring package.json updates are applied..."
+          node ./packages/audit/run-audit.js ./packages/audit
+          python3 ./packages/autofix/llm.py || echo "Using fallback mode"
+          npm install
+        continue-on-error: true
       
       - name: Generate post-fix vulnerability report
         run: node ./packages/audit/run-audit.js ./reports/post-fix
