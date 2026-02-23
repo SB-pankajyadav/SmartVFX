@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# Auto-fix vulnerabilities using Google Gemini AI with fallback to audit versions
+# Version: 2.0
+
 import json
 import re
 import requests
