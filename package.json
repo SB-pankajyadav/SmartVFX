@@ -7,7 +7,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "project-setup": "npm install && npm run py-setup && npm run dashboard-setup ",
+    "project-setup": "npm install && npm run py-setup",
     "dashboard-setup": "cd ./packages/audit/dashboard-data && npm install",
     "start": "node ./packages/work/index.js && cd ./packages/audit/dashboard-data && npm run start",
     "audit": "node ./packages/audit/run-audit.js",
