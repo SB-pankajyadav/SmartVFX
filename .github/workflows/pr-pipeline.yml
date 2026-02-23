@@ -397,13 +397,31 @@ jobs:
           
           # Compare pre-fix and post-fix dashboards
           if [ -f reports/pre-fix-comparison/vulnerability_dashboard.json ] && [ -f reports/post-fix/vulnerability_dashboard.json ]; then
-            PRE_HIGH=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
-            PRE_MODERATE=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
-            PRE_LOW=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
+            echo "Debug: Reading pre-fix dashboard..."
+            cat reports/pre-fix-comparison/vulnerability_dashboard.json
+            echo ""
+            echo "Debug: Reading post-fix dashboard..."
+            cat reports/post-fix/vulnerability_dashboard.json
+            echo ""
             
-            POST_HIGH=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2 || echo "0")
-            POST_MODERATE=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2 || echo "0")
-            POST_LOW=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2 || echo "0")
+            PRE_HIGH=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2)
+            PRE_MODERATE=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2)
+            PRE_LOW=$(cat reports/pre-fix-comparison/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2)
+            
+            POST_HIGH=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"high":[0-9]*' | cut -d: -f2)
+            POST_MODERATE=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"moderate":[0-9]*' | cut -d: -f2)
+            POST_LOW=$(cat reports/post-fix/vulnerability_dashboard.json | grep -o '"low":[0-9]*' | cut -d: -f2)
+            
+            # Set defaults if empty
+            PRE_HIGH=${PRE_HIGH:-0}
+            PRE_MODERATE=${PRE_MODERATE:-0}
+            PRE_LOW=${PRE_LOW:-0}
+            POST_HIGH=${POST_HIGH:-0}
+            POST_MODERATE=${POST_MODERATE:-0}
+            POST_LOW=${POST_LOW:-0}
+            
+            echo "Debug: PRE_HIGH=$PRE_HIGH, PRE_MODERATE=$PRE_MODERATE, PRE_LOW=$PRE_LOW"
+            echo "Debug: POST_HIGH=$POST_HIGH, POST_MODERATE=$POST_MODERATE, POST_LOW=$POST_LOW"
             
             DIFF_HIGH=$((PRE_HIGH - POST_HIGH))
             DIFF_MODERATE=$((PRE_MODERATE - POST_MODERATE))
