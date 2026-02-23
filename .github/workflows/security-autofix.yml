@@ -178,6 +178,9 @@ jobs:
           fi
           python3 packages/autofix/llm.py 2>&1 | tee autofix-output.log || echo "Python script failed with exit code $?"
           echo ""
+          echo "=== Installing updated dependencies ==="
+          npm install 2>&1 | tee -a autofix-output.log || echo "npm install failed with exit code $?"
+          echo ""
           echo "=== Auto-Fix Process Complete ==="
           echo "Package.json after:"
           cat package.json
