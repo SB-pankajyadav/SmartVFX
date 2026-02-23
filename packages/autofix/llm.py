@@ -20,7 +20,7 @@ def load_snyk_json(file_path):
 
 # 🔹 Extract vulnerabilities from audit JSON produced by run-audit.js
 def extract_vulnerabilities(data):
-    """Return mapping of root package -> fixed version.
+    """Return (versions, severities) for vulnerable root packages.
 
     Expects structure from packages/audit/run-audit.js:
       { "high": [ {"package": ..., "info": {"fixAvailable": {"name": pkg, "version": ver}} }, ... ],
@@ -29,9 +29,11 @@ def extract_vulnerabilities(data):
     We derive the package in root package.json from fixAvailable.name (or info.name as fallback)
     and the target version from fixAvailable.version.
     """
-    updates = {}
+    versions = {}
+    severities = {}
 
-    for severity_level in ["high", "moderate", "low"]:
+    # Include optional "critical" plus the existing levels
+    for severity_level in ["critical", "high", "moderate", "low"]:
         vulns = data.get(severity_level, []) or []
         for vuln in vulns:
             info = vuln.get("info", {}) or {}
@@ -52,9 +54,10 @@ def extract_vulnerabilities(data):
             target_version = fix.get("version")
 
             if pkg_name and target_version:
-                updates[pkg_name] = target_version
+                versions[pkg_name] = target_version
+                severities[pkg_name] = severity_level
 
-    return updates
+    return versions, severities
 
 # 🔹 Read `package.json` dependencies
 def read_package_json(file_path):
@@ -132,46 +135,46 @@ def update_package_json(package_path, original_data, cleaned_lines):
     original_data["dependencies"] = deps
     with open(package_path, "w") as f:
         json.dump(original_data, f, indent=2)
-
-def append_fixed_apply(log_path, old_versions, fixed_versions):
+def append_fixed_apply(log_path, package_entries):
     """Append a JSON entry to log_path. Maintains a JSON array of entries.
 
-    Desired format per run:
-      {
-        "time": "HH:MM:SS",
-        "date": "YYYY-MM-DD",
-        "packages": [
-          {
-            "name": "package_name",
-            "old_version": "current version in package.json",
-            "new_version": "updated version after fix"
-          },
-          ...
-        ]
-      }
+    Desired format of each entry:
+        {
+            "time": "HH:MM:SS",
+            "date": "YYYY-MM-DD",
+            "fixed_stat": {
+                "critical": <count>,
+                "high": <count>,
+                "moderate": <count>,
+                "low": <count>
+            },
+            "package": [
+                {
+                    "name": package_name,
+                    "old_version": current_version,
+                    "new_version": fixed_version,
+                    "category": "critical|high|moderate|low"
+                },
+                ...
+            ]
+        }
     """
     ts = datetime.utcnow().isoformat() + "Z"
     date = ts.split("T")[0]
     time_str = ts.split("T")[1].rstrip("Z")
 
-    # Build package list combining old and new versions
-    packages = []
-    for name, old_ver in old_versions.items():
-        new_ver = fixed_versions.get(name)
-        if new_ver is None:
-            continue
-        packages.append(
-            {
-                "name": name,
-                "old_version": old_ver,
-                "new_version": new_ver,
-            }
-        )
+    # Compute per-category counts from the package entries
+    counts = {"critical": 0, "high": 0, "moderate": 0, "low": 0}
+    for pkg in package_entries:
+        category = str(pkg.get("category", "")).lower()
+        if category in counts:
+            counts[category] += 1
 
     entry = {
         "time": time_str,
         "date": date,
-        "package": packages,
+        "fixed_stat": counts,
+        "package": package_entries,
     }
 
     # Read existing JSON array if present, else start new
@@ -214,12 +217,12 @@ def main():
         print("❌ Error: GOOGLE_GENAI_API_KEY not found in environment")
         return
     
-    # File paths: vulnerabilities from packages/audit, package.json from root, logs to packages/audit
+    # File paths: vulnerabilities from packages/audit, package.json from root, logs to packages/audit/dashboard-data/src
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # packages/autofix
     VULN_JSON_FILE = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "audit", "vulnerability_report.json"))
     PACKAGE_FILE = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "package.json"))
     FIXED_FILE = PACKAGE_FILE  # write updated package.json at root
-    APPEND_LOG = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "audit", "fix_applied.json"))  # log in packages/audit
+    APPEND_LOG = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "audit", "dashboard-data", "src", "data.json"))  # log in dashboard-data src
     
     # Debug: Print file paths
     print(f"🔹 Script directory: {SCRIPT_DIR}")
@@ -232,7 +235,7 @@ def main():
     try:
         vuln_data = load_snyk_json(VULN_JSON_FILE)
         print(f"📄 Raw data keys: {list(vuln_data.keys())}")
-        vulnerabilities = extract_vulnerabilities(vuln_data)
+        vulnerabilities, severities = extract_vulnerabilities(vuln_data)
         print(f"✅ Found {len(vulnerabilities)} vulnerable packages")
         if vulnerabilities:
             print(f"   Packages: {list(vulnerabilities.keys())}")
@@ -290,9 +293,27 @@ def main():
                 old_versions[pkg] = old_ver
                 new_versions[pkg] = new_ver
 
-        # Append a JSON log of fixes (incremental), include previous and new versions
-        append_fixed_apply(APPEND_LOG, old_versions, new_versions)
-        print(f"✅ Updated package.json saved to `{FIXED_FILE}` and fixes appended to `{APPEND_LOG}`!")
+        # Build per-package log entries in the requested format
+        package_entries = []
+        for pkg, old_ver in old_versions.items():
+            new_ver = new_versions.get(pkg)
+            if new_ver is None:
+                continue
+            category = severities.get(pkg, "unknown")
+            package_entries.append(
+                {
+                    "name": pkg,
+                    "old_version": str(old_ver),
+                    "new_version": str(new_ver),
+                    "category": category,
+                }
+            )
+
+        if package_entries:
+            append_fixed_apply(APPEND_LOG, package_entries)
+            print(f"✅ Updated package.json saved to `{FIXED_FILE}` and fixes appended to `{APPEND_LOG}`!")
+        else:
+            print("ℹ️ No dependency version changes detected; nothing to append to fix_applied.json.")
     except Exception as e:
         print(f"❌ Error processing with Gemini: {e}")
         return
