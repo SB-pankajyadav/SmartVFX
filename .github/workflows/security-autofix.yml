@@ -366,7 +366,6 @@ jobs:
           # 🔒 Security Vulnerability Auto-Fix Report
           
           **Pipeline Run:** ${{ github.run_number }}  
-          **Date:** $(TZ='Asia/Kolkata' date +"%Y-%m-%d %H:%M:%S IST")  
           **Branch:** ${{ github.ref_name }}  
           **Commit:** ${{ github.sha }}
           
