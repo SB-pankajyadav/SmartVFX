@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# Auto-fix vulnerabilities using Google Gemini AI with fallback to audit versions
+# Version: 2.0
+
 import json
 import re
 import requests
@@ -190,6 +194,9 @@ def append_fixed_apply(log_path, package_entries):
 
     entries.append(entry)
 
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    
     with open(log_path, "w") as f:
         json.dump(entries, f, indent=2)
 
@@ -254,69 +261,72 @@ def main():
     # Ask LLM for fixes
     prompt = format_prompt(dependencies, vulnerabilities)
     print("🔹 Sending vulnerabilities to Google Gemini for fixing...\n")
+    
+    # Try Gemini, but always have fallback ready
+    cleaned_output = ""
     try:
         ai_output = ask_gemini(prompt, API_KEY)
         cleaned_output = clean_ai_output(ai_output)
-
-        # If Gemini didn't return anything we can parse, fall back to
-        # using versions directly from the audit report.
-        if not cleaned_output.strip():
-            print("⚠️ Gemini returned no parsed fixes, using audit versions directly.")
-            fallback_lines = "\n".join(
-                f"{pkg}=={ver}" for pkg, ver in vulnerabilities.items()
-            )
-            cleaned_output = fallback_lines + "\n"
-
-        # Update package.json with AI suggestions (or fallback)
-        update_package_json(PACKAGE_FILE, original_pkg, cleaned_output)
-
-        # Load the updated package.json and compute changed packages
-        try:
-            with open(PACKAGE_FILE, "r") as f:
-                updated_pkg = json.load(f)
-        except Exception:
-            updated_pkg = original_pkg
-
-        updated_deps = {}
-        for key in ("dependencies", "devDependencies"):
-            updated_deps.update(updated_pkg.get(key, {}))
-
-        # Determine which packages changed and collect old/new versions
-        old_versions = {}
-        new_versions = {}
-        for pkg, new_ver in updated_deps.items():
-            old_ver = dependencies.get(pkg)
-            if old_ver is None:
-                continue
-            # normalize forms for comparison
-            if str(old_ver) != str(new_ver):
-                old_versions[pkg] = old_ver
-                new_versions[pkg] = new_ver
-
-        # Build per-package log entries in the requested format
-        package_entries = []
-        for pkg, old_ver in old_versions.items():
-            new_ver = new_versions.get(pkg)
-            if new_ver is None:
-                continue
-            category = severities.get(pkg, "unknown")
-            package_entries.append(
-                {
-                    "name": pkg,
-                    "old_version": str(old_ver),
-                    "new_version": str(new_ver),
-                    "category": category,
-                }
-            )
-
-        if package_entries:
-            append_fixed_apply(APPEND_LOG, package_entries)
-            print(f"✅ Updated package.json saved to `{FIXED_FILE}` and fixes appended to `{APPEND_LOG}`!")
-        else:
-            print("ℹ️ No dependency version changes detected; nothing to append to fix_applied.json.")
     except Exception as e:
-        print(f"❌ Error processing with Gemini: {e}")
-        return
+        print(f"⚠️ Gemini request failed: {e}")
+        print("⚠️ Falling back to audit report versions...")
+    
+    # If Gemini didn't return anything we can parse, fall back to
+    # using versions directly from the audit report.
+    if not cleaned_output.strip():
+        print("⚠️ Using audit versions directly (Gemini unavailable or returned empty).")
+        fallback_lines = "\n".join(
+            f"{pkg}=={ver}" for pkg, ver in vulnerabilities.items()
+        )
+        cleaned_output = fallback_lines + "\n"
+
+    # Update package.json with AI suggestions (or fallback)
+    update_package_json(PACKAGE_FILE, original_pkg, cleaned_output)
+
+    # Load the updated package.json and compute changed packages
+    try:
+        with open(PACKAGE_FILE, "r") as f:
+            updated_pkg = json.load(f)
+    except Exception:
+        updated_pkg = original_pkg
+
+    updated_deps = {}
+    for key in ("dependencies", "devDependencies"):
+        updated_deps.update(updated_pkg.get(key, {}))
+
+    # Determine which packages changed and collect old/new versions
+    old_versions = {}
+    new_versions = {}
+    for pkg, new_ver in updated_deps.items():
+        old_ver = dependencies.get(pkg)
+        if old_ver is None:
+            continue
+        # normalize forms for comparison
+        if str(old_ver) != str(new_ver):
+            old_versions[pkg] = old_ver
+            new_versions[pkg] = new_ver
+
+    # Build per-package log entries in the requested format
+    package_entries = []
+    for pkg, old_ver in old_versions.items():
+        new_ver = new_versions.get(pkg)
+        if new_ver is None:
+            continue
+        category = severities.get(pkg, "unknown")
+        package_entries.append(
+            {
+                "name": pkg,
+                "old_version": str(old_ver),
+                "new_version": str(new_ver),
+                "category": category,
+            }
+        )
+
+    if package_entries:
+        append_fixed_apply(APPEND_LOG, package_entries)
+        print(f"✅ Updated package.json saved to `{FIXED_FILE}` and fixes appended to `{APPEND_LOG}`!")
+    else:
+        print("ℹ️ No dependency version changes detected; nothing to append to fix_applied.json.")
 
 # Run the script
 if __name__ == "__main__":
