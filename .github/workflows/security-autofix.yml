@@ -324,6 +324,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-and-audit, autofix]
     if: always()
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     
     steps:
       - name: Checkout repository
