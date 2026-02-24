@@ -10,7 +10,11 @@ packages/autofix/.venv
 packages/audit/fix_applied.json
 
 node_modules
+packages/audit/dashboard-data/node_modules
 package-lock.json
+packages/audit/dashboard-data/package-lock.json
 
 packages/audit/vulnerability_dashboard.json
 packages/audit/vulnerability_report.json
+
+packages/audit/dashboard-data
