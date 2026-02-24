@@ -1,0 +1,134 @@
+[
+  {
+    "time": "08:30:34.320728",
+    "date": "2026-02-23",
+    "fixed_stat": {
+      "critical": 0,
+      "high": 2,
+      "moderate": 2,
+      "low": 0
+    },
+    "package": [
+      {
+        "name": "mongoose",
+        "old_version": "4.2.4",
+        "new_version": "9.2.1",
+        "category": "moderate"
+      },
+      {
+        "name": "body-parser",
+        "old_version": "1.19.0",
+        "new_version": "1.20.4",
+        "category": "high"
+      },
+      {
+        "name": "jsonwebtoken",
+        "old_version": "8.5.1",
+        "new_version": "9.0.3",
+        "category": "high"
+      },
+      {
+        "name": "got",
+        "old_version": "11.8.2",
+        "new_version": "11.8.6",
+        "category": "moderate"
+      }
+    ]
+  },
+  {
+    "time": "08:43:30.605087",
+    "date": "2026-02-23",
+    "fixed_stat": {
+      "critical": 0,
+      "high": 3,
+      "moderate": 2,
+      "low": 1
+    },
+    "package": [
+      {
+        "name": "express",
+        "old_version": "4.12.4",
+        "new_version": "4.22.1",
+        "category": "low"
+      },
+      {
+        "name": "mongoose",
+        "old_version": "4.2.4",
+        "new_version": "9.2.1",
+        "category": "moderate"
+      },
+      {
+        "name": "body-parser",
+        "old_version": "1.19.0",
+        "new_version": "1.20.4",
+        "category": "high"
+      },
+      {
+        "name": "jsonwebtoken",
+        "old_version": "8.5.1",
+        "new_version": "9.0.3",
+        "category": "high"
+      },
+      {
+        "name": "lodash",
+        "old_version": "4.17.15",
+        "new_version": "4.17.23",
+        "category": "high"
+      },
+      {
+        "name": "got",
+        "old_version": "11.8.2",
+        "new_version": "11.8.6",
+        "category": "moderate"
+      }
+    ]
+  },
+  {
+    "time": "09:38:46.456944",
+    "date": "2026-02-23",
+    "fixed_stat": {
+      "critical": 0,
+      "high": 3,
+      "moderate": 2,
+      "low": 1
+    },
+    "package": [
+      {
+        "name": "express",
+        "old_version": "4.12.4",
+        "new_version": "4.22.1",
+        "category": "low"
+      },
+      {
+        "name": "mongoose",
+        "old_version": "4.2.4",
+        "new_version": "9.2.1",
+        "category": "moderate"
+      },
+      {
+        "name": "body-parser",
+        "old_version": "1.19.0",
+        "new_version": "1.20.4",
+        "category": "high"
+      },
+      {
+        "name": "jsonwebtoken",
+        "old_version": "8.5.1",
+        "new_version": "9.0.3",
+        "category": "high"
+      },
+      {
+        "name": "lodash",
+        "old_version": "4.17.15",
+        "new_version": "4.17.23",
+        "category": "high"
+      },
+      {
+        "name": "got",
+        "old_version": "11.8.2",
+        "new_version": "11.8.6",
+        "category": "moderate"
+      }
+    ]
+  }
+]
