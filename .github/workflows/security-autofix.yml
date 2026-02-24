@@ -252,8 +252,7 @@ jobs:
               -m "Fixed by GitHub Actions Security Auto-Fix Pipeline" \
               -m "Run: ${{ github.run_number }}" \
               -m "Commit: ${{ github.sha }}" \
-              -m "Date: $(TZ='Asia/Kolkata' date +'%Y-%m-%d %H:%M:%S IST')"
-            
+                          
             echo "=== Pushing changes to repository ==="
             git push origin "$BRANCH_NAME" || {
               echo "❌ Failed to push changes"
