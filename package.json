@@ -21,6 +21,7 @@
     "body-parser": "1.20.4",
     "jsonwebtoken": "9.0.3",
     "lodash": "4.17.23",
-    "got": "11.8.6"
+    "got": "11.8.6",
+    "request": "2.88.2"
   }
 }
