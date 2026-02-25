@@ -16,5 +16,3 @@ packages/audit/dashboard-data/package-lock.json
 
 packages/audit/vulnerability_dashboard.json
 packages/audit/vulnerability_report.json
-
-packages/audit/dashboard-data

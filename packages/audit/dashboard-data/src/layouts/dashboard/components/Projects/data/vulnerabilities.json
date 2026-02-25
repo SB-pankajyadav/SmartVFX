@@ -1,0 +1,52 @@
+{
+  "vulnerabilities": [
+    {
+      "id": 1,
+      "packageName": "express",
+      "oldVersion": "4.16.2",
+      "fixedVersion": "4.18.2",
+      "category": "critical",
+      "description": "Path Traversal Vulnerability"
+    },
+    {
+      "id": 2,
+      "packageName": "lodash",
+      "oldVersion": "4.17.15",
+      "fixedVersion": "4.17.21",
+      "category": "high",
+      "description": "Prototype Pollution"
+    },
+    {
+      "id": 3,
+      "packageName": "moment",
+      "oldVersion": "2.24.0",
+      "fixedVersion": "2.29.4",
+      "category": "high",
+      "description": "Regular Expression DoS (ReDoS)"
+    },
+    {
+      "id": 4,
+      "packageName": "node-serialize",
+      "oldVersion": "0.0.1",
+      "fixedVersion": "0.0.4",
+      "category": "critical",
+      "description": "Code Execution via Deserialization"
+    },
+    {
+      "id": 5,
+      "packageName": "pug",
+      "oldVersion": "2.0.0-beta6",
+      "fixedVersion": "3.0.1",
+      "category": "moderate",
+      "description": "Information Disclosure"
+    },
+    {
+      "id": 6,
+      "packageName": "serialize-javascript",
+      "oldVersion": "1.6.1",
+      "fixedVersion": "6.0.0",
+      "category": "critical",
+      "description": "Remote Code Execution"
+    }
+  ]
+}

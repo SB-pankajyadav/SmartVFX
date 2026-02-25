@@ -1,0 +1,114 @@
+{
+  "projects": [
+    {
+      "id": 1,
+      "name": "Material UI XD Version",
+      "logo": "logo-xd",
+      "members": [
+        {
+          "image": "team-1",
+          "name": "Ryan Tompson"
+        },
+        {
+          "image": "team-2",
+          "name": "Romina Hadid"
+        },
+        {
+          "image": "team-3",
+          "name": "Alexander Smith"
+        },
+        {
+          "image": "team-4",
+          "name": "Jessica Doe"
+        }
+      ],
+      "budget": "$14,000",
+      "completion": 60
+    },
+    {
+      "id": 2,
+      "name": "Add Progress Track",
+      "logo": "logo-atlassian",
+      "members": [
+        {
+          "image": "team-2",
+          "name": "Romina Hadid"
+        },
+        {
+          "image": "team-4",
+          "name": "Jessica Doe"
+        }
+      ],
+      "budget": "$3,000",
+      "completion": 10
+    },
+    {
+      "id": 3,
+      "name": "Fix Platform Errors",
+      "logo": "logo-slack",
+      "members": [
+        {
+          "image": "team-1",
+          "name": "Ryan Tompson"
+        },
+        {
+          "image": "team-3",
+          "name": "Alexander Smith"
+        }
+      ],
+      "budget": "Not set",
+      "completion": 100
+    },
+    {
+      "id": 4,
+      "name": "Launch our Mobile App",
+      "logo": "logo-spotify",
+      "members": [
+        {
+          "image": "team-3",
+          "name": "Alexander Smith"
+        },
+        {
+          "image": "team-4",
+          "name": "Jessica Doe"
+        },
+        {
+          "image": "team-1",
+          "name": "Ryan Tompson"
+        }
+      ],
+      "budget": "$20,500",
+      "completion": 100
+    },
+    {
+      "id": 5,
+      "name": "Add the New Routing Pages",
+      "logo": "logo-jira",
+      "members": [
+        {
+          "image": "team-4",
+          "name": "Jessica Doe"
+        }
+      ],
+      "budget": "$2,000",
+      "completion": 64
+    },
+    {
+      "id": 6,
+      "name": "Redesign New Online Shop",
+      "logo": "logo-invision",
+      "members": [
+        {
+          "image": "team-1",
+          "name": "Ryan Tompson"
+        },
+        {
+          "image": "team-4",
+          "name": "Jessica Doe"
+        }
+      ],
+      "budget": "$2,300",
+      "completion": 98
+    }
+  ]
+}
